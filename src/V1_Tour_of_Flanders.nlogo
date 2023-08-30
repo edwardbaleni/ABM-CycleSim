@@ -35,8 +35,9 @@ to setup
 end
 
 to go
+  if not any? turtles [stop]
   move-cyclists
-  ;finish-cyclists
+  finish-cyclists
   ;move-people
   tick
 end
@@ -67,16 +68,27 @@ to draw-roads
     sprout 1 [
       set shape "cobbles"
       set color brown
-      set meaning "cobbles" ; can use this in if statements to set conditions of cobbles
+      stamp die
     ]
+    set meaning "cobbles" ; can use this in if statements to set conditions of cobbles
   ]
 
   ; Setup finish line
   ask patches with [ pxcor <= 60 and pxcor > 55 and pycor > -20 and pycor < 20] [
     sprout 1 [
       set shape "finish"
-      set meaning "finish" ; can use this in if statements to set conditions of cobbles
-    ]
+      stamp die]
+    set meaning "finish" ; can use this in if statements to set conditions of cobbles
+  ]
+
+
+  ask patches with [ pycor > -10 and pycor < 10 and pxcor >= -60 and pxcor <= -50][
+    sprout 1 [
+      set shape "line"
+      set color white
+      set size 5
+      stamp die]
+    set meaning "start"
   ]
 end
 
@@ -91,27 +103,53 @@ to draw-neighbourhood
     ]
   ]
 
-  ; Draw sidewalk
-  ask patches with [meaning = "grass"][
-   sprout 10 [
-      set shape one-of ["house" "house colonial" "house two story"]
-    ]
-
-  ]
 
   ; Draw homes
+  ask n-of 20 patches with [ meaning = "grass"][
+     if count neighbors with [meaning = "grass"] = 8 and not any? turtles in-radius 2[
+      sprout 1 [
+        set shape one-of ["house" "house colonial" "house two story"]
+        set size 6
+        stamp die
+      ]
+    ]
+    set meaning "house"
+  ]
+
+  ; Draw trees
+  ask patches with [meaning = "grass"][
+    if count neighbors with [meaning = "grass"] = 8 and not any? patches with [meaning = "houses"] in-radius 4 or not any? turtles in-radius 1 [
+      if random 100 > 95 [
+        sprout 1 [
+          set shape one-of [ "tree" "tree pine" ]
+          set size 4
+          set color green
+          stamp die
+        ]
+      ]
+    ]
+    set meaning "tree"
+  ]
 end
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Handle Agents ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; order in which agents are sprouted will result in how they over lap
 
+;to place-cyclists
+;  ask n-of 100 patches with [ pycor > -10 and pycor < 10 and pxcor >= -60 and pxcor <= -50 ][
+;    sprout-cyclists 1 [
+;      set heading 90
+;      set color red
+;  ]
+; ]
+;end
+
 to place-cyclists
-  ask n-of 100 patches with [ pycor > -10 and pycor < 10 and pxcor >= -60 and pxcor <= -50 ][
-    sprout-cyclists 1 [
-      set heading 90
-      set color red
+  create-cyclists 100 [
+    set size 1.5
+    set heading 90
+    move-to one-of patches with [meaning = "start"]
   ]
- ]
 end
 
 to move-cyclists
@@ -123,13 +161,26 @@ end
 
 ; Kill agent if at the end of the race, Just means that they are done.
 ;to finish-cyclists
-;  if
+;  ask cyclists [
+;    if any? cyclists-on patches with [meaning = "finish"][
+;      ask cyclists-here [die]
+;    ]
+;  ]
+;end
+
+to finish-cyclists
+  ask patches with [ meaning = "finish"][
+    ask cyclists-here [stamp die]
+  ]
+end
+
+
 @#$#@#$#@
 GRAPHICS-WINDOW
 132
 220
-765
-647
+766
+648
 -1
 -1
 5.18
@@ -444,7 +495,7 @@ Polygon -7500403 true true 150 210 135 195 120 210 60 210 30 195 60 180 60 165 1
 Polygon -7500403 true true 135 195 135 240 120 255 105 255 105 285 135 285 165 240 165 195
 
 line
-true
+false
 0
 Line -7500403 true 150 0 150 300
 
