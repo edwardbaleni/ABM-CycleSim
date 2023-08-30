@@ -1,7 +1,6 @@
 ; Define agents
 breed [ cyclists cyclist ]
 breed [ persons person ]
-breed [ finish finishes ]
 
 ; Define characteristics of agentss and environment
  ; cylclists:
@@ -16,17 +15,21 @@ breed [ finish finishes ]
   ; temperment
   ; excitement
   ; Visibility
+patches-own[
+  meaning ; role fo the patch
+]
 
 ; create environment
 to setup
   clear-all    ;
   draw-roads
-  draw-grass
-  draw-finish
+  draw-neighbourhood
   ;draw-homes
   ;draw-elevation
-  place-cyclists
   ;place persons
+  ;draw-cobbles
+  ;draw-finish
+  place-cyclists
   reset-ticks
   ;tick
 end
@@ -41,30 +44,66 @@ end
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Setup Environment ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 to draw-roads
     ; "ask patches with", this will ask patches with certain characteristics to do something
-  ask patches [
-    if pycor > -20 and pycor < 20 [
+  ask patches with [ pycor > -20 and pycor < 20] [
       set pcolor grey
+    ]
+
+   ; set up yellow lines on side walk
+  ask patches with [pycor > -19 and pycor < -17 and pxcor <= 20 or pycor > 17 and pycor < 19 and pxcor <= 20][
+     sprout 1 [
+      set shape "sideline"
+  ]]
+
+   ; set up yellow lines on side walk
+  ask patches with [pycor > -19 and pycor < -17 and pxcor > 40 and pxcor <= 55 or pycor > 17 and pycor < 19 and pxcor > 40 and pxcor <= 55][
+     sprout 1 [
+      set shape "sideline"
+  ]]
+
+  ; https://www.cyclingnews.com/races/tour-of-flanders-2023/map/
+  ; Link above shows where the key climbs are and where the key cobbles are
+  ; Below is just an example of setting cobbles
+  ask patches with [ pxcor <= 40 and pxcor > 20 and pycor > -20 and pycor < 20][
+    sprout 1 [
+      set shape "cobbles"
+      set color brown
+      set meaning "cobbles" ; can use this in if statements to set conditions of cobbles
+    ]
+  ]
+
+  ; Setup finish line
+  ask patches with [ pxcor <= 60 and pxcor > 55 and pycor > -20 and pycor < 20] [
+    sprout 1 [
+      set shape "finish"
+      set meaning "finish" ; can use this in if statements to set conditions of cobbles
     ]
   ]
 end
 
-to draw-grass
+to draw-neighbourhood
+  ; Draw grass
   ask patches [
     if pycor <= -20 or pycor >= 20[
       let g random 16 + 96
       let c (list 0 g 0)
       set pcolor c
+      set meaning "grass"
     ]
   ]
+
+  ; Draw sidewalk
+  ask patches with [meaning = "grass"][
+   sprout 10 [
+      set shape one-of ["house" "house colonial" "house two story"]
+    ]
+
+  ]
+
+  ; Draw homes
 end
 
-to draw-finish
-  ask patches with [ pxcor <= 60 and pxcor > 55] [
-    sprout-finish 1 [
-      set shape "crossing"
-    ]
-  ]
-end
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Handle Agents ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; order in which agents are sprouted will result in how they over lap
 
 to place-cyclists
   ask n-of 100 patches with [ pycor > -10 and pycor < 10 and pxcor >= -60 and pxcor <= -50 ][
@@ -251,6 +290,23 @@ false
 Circle -7500403 true true 0 0 300
 Circle -16777216 true false 30 30 240
 
+cobbles
+false
+0
+Polygon -7500403 true true 0 240 45 195 75 180 90 165 90 135 45 120 0 135
+Polygon -7500403 true true 300 240 285 210 270 180 270 150 300 135 300 225
+Polygon -7500403 true true 225 300 240 270 270 255 285 255 300 285 300 300
+Polygon -7500403 true true 0 285 30 300 0 300
+Polygon -7500403 true true 225 0 210 15 210 30 255 60 285 45 300 30 300 0
+Polygon -7500403 true true 0 30 30 0 0 0
+Polygon -7500403 true true 15 30 75 0 180 0 195 30 225 60 210 90 135 60 45 60
+Polygon -7500403 true true 0 105 30 105 75 120 105 105 90 75 45 75 0 60
+Polygon -7500403 true true 300 60 240 75 255 105 285 120 300 105
+Polygon -7500403 true true 120 75 120 105 105 135 105 165 165 150 240 150 255 135 240 105 210 105 180 90 150 75
+Polygon -7500403 true true 75 300 135 285 195 300
+Polygon -7500403 true true 30 285 75 285 120 270 150 270 150 210 90 195 60 210 15 255
+Polygon -7500403 true true 180 285 240 255 255 225 255 195 240 165 195 165 150 165 135 195 165 210 165 255
+
 cow
 false
 0
@@ -291,6 +347,15 @@ Circle -7500403 true true 8 8 285
 Circle -16777216 true false 60 75 60
 Circle -16777216 true false 180 75 60
 Polygon -16777216 true false 150 168 90 184 62 210 47 232 67 244 90 220 109 205 150 198 192 205 210 220 227 242 251 229 236 206 212 183
+
+finish
+false
+0
+Rectangle -1 false false -15 0 315 300
+Rectangle -16777216 true false 0 0 150 150
+Rectangle -16777216 true false 150 150 300 300
+Rectangle -1 true false 150 0 300 150
+Rectangle -1 true false 0 150 150 300
 
 fish
 false
@@ -333,6 +398,44 @@ Rectangle -7500403 true true 45 120 255 285
 Rectangle -16777216 true false 120 210 180 285
 Polygon -7500403 true true 15 120 150 15 285 120
 Line -16777216 false 30 120 270 120
+
+house colonial
+false
+0
+Rectangle -7500403 true true 270 75 285 255
+Rectangle -7500403 true true 45 135 270 255
+Rectangle -16777216 true false 124 195 187 256
+Rectangle -16777216 true false 60 195 105 240
+Rectangle -16777216 true false 60 150 105 180
+Rectangle -16777216 true false 210 150 255 180
+Line -16777216 false 270 135 270 255
+Polygon -7500403 true true 30 135 285 135 240 90 75 90
+Line -16777216 false 30 135 285 135
+Line -16777216 false 255 105 285 135
+Line -7500403 true 154 195 154 255
+Rectangle -16777216 true false 210 195 255 240
+Rectangle -16777216 true false 135 150 180 180
+
+house two story
+false
+0
+Polygon -7500403 true true 2 180 227 180 152 150 32 150
+Rectangle -7500403 true true 270 75 285 255
+Rectangle -7500403 true true 75 135 270 255
+Rectangle -16777216 true false 124 195 187 256
+Rectangle -16777216 true false 210 195 255 240
+Rectangle -16777216 true false 90 150 135 180
+Rectangle -16777216 true false 210 150 255 180
+Line -16777216 false 270 135 270 255
+Rectangle -7500403 true true 15 180 75 255
+Polygon -7500403 true true 60 135 285 135 240 90 105 90
+Line -16777216 false 75 135 75 180
+Rectangle -16777216 true false 30 195 93 240
+Line -16777216 false 60 135 285 135
+Line -16777216 false 255 105 285 135
+Line -16777216 false 0 180 75 180
+Line -7500403 true 60 195 60 240
+Line -7500403 true 154 195 154 255
 
 leaf
 false
@@ -392,6 +495,11 @@ Polygon -1 true true 195 285 210 285 210 240 240 210 195 210
 Polygon -7500403 true false 276 85 285 105 302 99 294 83
 Polygon -7500403 true false 219 85 210 105 193 99 201 83
 
+sideline
+false
+0
+Rectangle -1184463 true false 0 75 300 240
+
 square
 false
 0
@@ -426,6 +534,14 @@ Circle -7500403 true true 65 21 108
 Circle -7500403 true true 116 41 127
 Circle -7500403 true true 45 90 120
 Circle -7500403 true true 104 74 152
+
+tree pine
+false
+0
+Rectangle -6459832 true false 120 225 180 300
+Polygon -7500403 true true 150 240 240 270 150 135 60 270
+Polygon -7500403 true true 150 75 75 210 150 195 225 210
+Polygon -7500403 true true 150 7 90 157 150 142 210 157 150 7
 
 triangle
 false
