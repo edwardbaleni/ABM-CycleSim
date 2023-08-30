@@ -59,9 +59,9 @@ to draw-grass
 end
 
 to draw-finish
-  ask patches with [ pxcor <= 60 and pxcor > 55] [
+  ask patches with [ pxcor <= 60 and pxcor > 55 and pycor > -20 and pycor < 20] [
     sprout-finish 1 [
-      set shape "crossing"
+      set shape "finish"
     ]
   ]
 end
@@ -291,6 +291,15 @@ Circle -7500403 true true 8 8 285
 Circle -16777216 true false 60 75 60
 Circle -16777216 true false 180 75 60
 Polygon -16777216 true false 150 168 90 184 62 210 47 232 67 244 90 220 109 205 150 198 192 205 210 220 227 242 251 229 236 206 212 183
+
+finish
+false
+0
+Rectangle -1 false false -15 0 315 300
+Rectangle -16777216 true false 0 0 150 150
+Rectangle -16777216 true false 150 150 300 300
+Rectangle -1 true false 150 0 300 150
+Rectangle -1 true false 0 150 150 300
 
 fish
 false
