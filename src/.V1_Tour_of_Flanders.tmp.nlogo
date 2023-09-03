@@ -3,18 +3,24 @@ breed [ cyclists cyclist ]
 breed [ persons person ]
 
 ; Define characteristics of agentss and environment
- ; cylclists:
+cyclists-own[
+  rider-mass
+  bike-mass
+  ;energy
+  speed
+  maxPower
+  climber?
+  sprinter?
+  cooperation
+  ]
   ; Energy
   ; Top Speed
   ; Current speed
   ; Acceleration  ; might just standardise this
-  ; Climber
-  ; Sprinter
+  ; Climber?
+  ; Sprinter?
+  ; Team
 
- ; persons
-  ; temperment
-  ; excitement
-  ; Visibility
 patches-own[
   meaning ; role fo the patch
 ]
@@ -24,21 +30,15 @@ to setup
   clear-all    ;
   draw-roads
   draw-neighbourhood
-  ;draw-homes
   ;draw-elevation
-  ;place persons
-  ;draw-cobbles
-  ;draw-finish
   place-cyclists
   reset-ticks
-  ;tick
 end
 
 to go
   if not any? turtles [stop]
   move-cyclists
   finish-cyclists
-  ;move-people
   tick
 end
 
@@ -86,7 +86,7 @@ to draw-roads
     sprout 1 [
       set shape "line"
       set color white
-
+      set size 5
       stamp die]
     set meaning "start"
   ]
@@ -94,13 +94,11 @@ end
 
 to draw-neighbourhood
   ; Draw grass
-  ask patches [
-    if pycor <= -20 or pycor >= 20[
+  ask patches with [pycor <= -20 or pycor >= 20] [
       let g random 16 + 96
       let c (list 0 g 0)
       set pcolor c
       set meaning "grass"
-    ]
   ]
 
 
@@ -133,47 +131,80 @@ to draw-neighbourhood
 end
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Handle Agents ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; order in which agents are sprouted will result in how they over lap
+
+; Try to assign teams by setting colours
 
 ;to place-cyclists
-;  ask n-of 100 patches with [ pycor > -10 and pycor < 10 and pxcor >= -60 and pxcor <= -50 ][
-;    sprout-cyclists 1 [
-;      set heading 90
-;      set color red
+;  ask cyclists [
+;    set number 0
 ;  ]
-; ]
+
+;  repeat 7 [
+;    create-cyclists 25 [
+;    set size 1.5
+;    set heading 90
+;      set color one-of [red green blue brown black pink white violet magenta cyan 22 lime orange yellow turquoise sky 133 122 118 83 42 12 98 57  33]
+;    move-to one-of patches with [meaning = "start"]
+;  ]]
+  ; Form teams by grouping by color
+  ;ask n-of 175 cyclists[
+  ;  set color one-of [red green blue brown yellow orange pink black white]
+;  ]
 ;end
 
 to place-cyclists
-  create-cyclists 100 [
+  create-cyclists 175 [
     set size 1.5
     set heading 90
+    set color magenta
+    set rider-mass 65
+    set bike-mass 7
+    set maxPower random-normal 7.1 0.4
+    set climber? one-of [true false]
+    set sprinter? one-of [true false]
+    set cooperation 0.48 0.2
+    move-to one-of patches with [meaning = "start"]
+  ]
+
+  create-cyclists 6 [
+    set size 1.5
+    set heading 90
+    set color cyan
+    move-to one-of patches with [meaning = "start"]
+  ]
+
+  create-cyclists 1 [
+    set size 1.5
+    set heading 90
+    set color blue
     move-to one-of patches with [meaning = "start"]
   ]
 end
 
 to move-cyclists
+
+  ;if [meaning] of patch-ahead 1 = "sideline" and ycor > 0 [
+  ;  ask cyclists-here [rt random 15]
+  ;]
+  ;if [meaning] of patch-ahead 1 = "sideline" and ycor < 0 [
+  ;  ask cyclists-here [lt random 15]
+  ;]
+  ;align-cyclists
+
   ask cyclists [
-    fd 1
+    fd 0.2
+    rt random 0.5
+    lt random 0.5
   ]
 end
 
 
 ; Kill agent if at the end of the race, Just means that they are done.
-;to finish-cyclists
-;  ask cyclists [
-;    if any? cyclists-on patches with [meaning = "finish"][
-;      ask cyclists-here [die]
-;    ]
-;  ]
-;end
-
 to finish-cyclists
   ask patches with [ meaning = "finish"][
     ask cyclists-here [stamp die]
   ]
 end
-
 
 @#$#@#$#@
 GRAPHICS-WINDOW
@@ -273,6 +304,8 @@ NIL
 ## CREDITS AND REFERENCES
 
 (a reference to the model's URL on the web if it has one, as well as any other necessary credits, citations, and links)
+
+(http://ccl.northwestern.edu/netlogo/models/community/Town%20-%20Traffic%20&%20Crowd%20simulation )
 @#$#@#$#@
 default
 true
