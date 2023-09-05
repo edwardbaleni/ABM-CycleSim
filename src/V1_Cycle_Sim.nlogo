@@ -18,6 +18,9 @@ cyclists-own[
   isLead?                       ; Allocate whether cyclist is in the front of the pack or not
   mates                         ; Allocates teammates generally to cyclist not for actual team
   nearest-neighbor              ; Looks for the cyclist's nearest neighbours
+
+  leader
+
   breakaway_prob                ; The probability that members of a team will follow a breakaway
 
   crash-prob                    ; The probability that the cyclist will crash
@@ -153,12 +156,15 @@ to lead
 end
 
 to updateSpeed
-  let newSpeed 0
+
+  ask cyclists with [ xcor > -55 and isLead? = true ] [
+    show [speed] of self
+  ]
+
   ask cyclists [
-    if any? mates and isLead? = true [
-      set newSpeed ( [ speed ] of cyclists )
-    ]
-    set speed newSpeed
+    set leader min-one-of cyclists with [ isLead? = true ] [distance myself]
+    set speed [ speed ] of leader
+
   ]
 end
 
@@ -282,7 +288,7 @@ to draw-roads
     ]
 
    ; set up yellow lines on side walk
-  ask patches with [pycor > -19 and pycor < -17 and pxcor <= 20 or pycor > 17 and pycor < 19 and pxcor <= 20][
+  ask patches with [pycor > -19 and pycor < -17 and pxcor <= 145 or pycor > 17 and pycor < 19 and pxcor <= 145][
      sprout 1 [
       set shape "sideline"
   ]]
@@ -306,7 +312,7 @@ to draw-roads
   ]
 
   ; Setup finish line
-  ask patches with [ pxcor <= 60 and pxcor > 55 and pycor > -20 and pycor < 20] [
+  ask patches with [ pxcor <= max-pxcor and pxcor > 145 and pycor > -20 and pycor < 20] [
     sprout 1 [
       set shape "finish"
       stamp die]
@@ -314,7 +320,7 @@ to draw-roads
   ]
 
 
-  ask patches with [ pycor > -7 and pycor < 7 and pxcor = -60 ][;pycor > -10 and pycor < 10 and pxcor >= -60 and pxcor <= -50][
+  ask patches with [ pycor > -7 and pycor < 7 and pxcor = min-pxcor ][
     sprout 1 [
       set shape "line"
       set color white
@@ -335,7 +341,7 @@ to draw-neighbourhood
 
 
   ; Draw homes
-  ask n-of 20 patches with [ meaning = "grass"][
+  ask n-of 50 patches with [ meaning = "grass"][
      if count neighbors with [meaning = "grass"] = 8 and not any? turtles in-radius 2[
       sprout 1 [
         set shape one-of ["house" "house colonial" "house two story"]
@@ -410,7 +416,7 @@ to place-cyclists
     set turtle-meaning "team"
     set isLead? false
 
-    set speed random-normal 0.5 0.05
+    set speed random-normal 0.5 0.1
 
     move-to one-of patches with [meaning = "start"]
   ]
@@ -439,11 +445,11 @@ end
 GRAPHICS-WINDOW
 8
 10
-984
-667
+1521
+424
 -1
 -1
-8.0
+5.0
 1
 10
 1
@@ -453,8 +459,8 @@ GRAPHICS-WINDOW
 1
 0
 1
--60
-60
+-150
+150
 -40
 40
 1
@@ -464,10 +470,10 @@ ticks
 1.0
 
 BUTTON
-991
-12
-1054
-45
+7
+437
+70
+470
 go
 go
 T
@@ -481,10 +487,10 @@ NIL
 1
 
 BUTTON
-991
-54
-1054
-87
+7
+479
+70
+512
 setup
 setup
 NIL
@@ -498,10 +504,10 @@ NIL
 1
 
 SWITCH
-1375
-159
-1496
-192
+391
+584
+512
+617
 leadClimber
 leadClimber
 1
@@ -509,10 +515,10 @@ leadClimber
 -1000
 
 SWITCH
-1505
-159
-1628
-192
+521
+584
+644
+617
 leadSprinter
 leadSprinter
 1
@@ -520,10 +526,10 @@ leadSprinter
 -1000
 
 SLIDER
-996
-160
-1168
-193
+12
+585
+184
+618
 leadPower
 leadPower
 4
@@ -535,20 +541,20 @@ W/kg
 HORIZONTAL
 
 CHOOSER
-1073
-41
-1211
-86
+89
+466
+227
+511
 teamAbility
 teamAbility
 "Good" "Average" "Bad"
 0
 
 SLIDER
-1229
-52
-1401
-85
+245
+477
+417
+510
 teamWork
 teamWork
 0
@@ -560,10 +566,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-1190
-160
-1362
-193
+206
+585
+378
+618
 leadEnergy
 leadEnergy
 0
@@ -575,10 +581,10 @@ kiloJoules
 HORIZONTAL
 
 SLIDER
-995
-113
-1167
-146
+11
+538
+183
+571
 leadWeight
 leadWeight
 60
@@ -590,10 +596,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-1190
-110
-1362
-143
+206
+535
+378
+568
 leadCooperation
 leadCooperation
 0
