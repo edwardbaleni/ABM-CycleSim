@@ -145,22 +145,22 @@ to lead
   ]
 
   ; Need to update cyclist speed to that of lead cyclist
-  ;ask cyclists [ updateSpeed ]
-  updateSpeed
+  ask cyclists [ updateSpeed ]
+
   ; If lead is cooperative, then lead for 5 minutes, then move to back of pack
   ;ask cyclist [ leading ]
 
 end
 
-to updateSpeed
-  let newSpeed 0
-  ask cyclists [
-    if any? mates and isLead? = true [
-      set newSpeed ( [ speed ] of cyclists )
-    ]
-    set speed newSpeed
-  ]
-end
+;to updateSpeed
+;  let newSpeed 0
+;  ask cyclists [
+;    if any? mates and isLead? = true [
+;      set newSpeed ( [ speed ] of cyclists )
+;    ]
+;    set speed newSpeed
+;  ]
+;end
 
 ;to-report speed-of-lead []
 ;  report [ speed ] of cyclists with [isLead? = true]
