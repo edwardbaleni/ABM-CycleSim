@@ -1,18 +1,34 @@
 ; Define agents
+;globals [leader]
 breed [ cyclists cyclist ]
 breed [ persons person ]
 
 ; Define characteristics of agentss and environment
 cyclists-own[
-  rider-mass
-  bike-mass
-  energy
-  maxSpeed
-  maxPower
-  climber?
-  sprinter?
-  cooperation
+  rider-mass                    ; Cyclist weight
+  bike-mass                     ; Bike weight
+  energy                        ; ...
+  maxSpeed                      ; Maximum speed that cyclist can travel
+  speed                         ; Current speed that agent is travelling
+  maxPower                      ; Maximum power a cyclist can produce for 10 minutes
+  isClimber?                    ; Indicate if the cyclist is a climber
+  isSprinter?                   ; Indicate if the cyclist is a sprinter
+  cooperation                   ; Cooperation probability of the group, assigns each cyclist in a pack a probability of cooperation
+  isCoop?                       ; Allocate true or false if the cyclist is cooperative or not, respectively
+  isLead?                       ; Allocate whether cyclist is in the front of the pack or not
+  mates                         ; Allocates teammates generally to cyclist not for actual team
+  nearest-neighbor              ; Looks for the cyclist's nearest neighbours
+  breakaway_prob                ; The probability that members of a team will follow a breakaway
+
+  crash-prob                    ; The probability that the cyclist will crash
+  aggression                    ; A cyclists level of aggression
+  turtle-meaning                ; Set meaning
+
+  ; For team and individual
+
+  team                          ; for team work of our actual team (teamwork)
   ]
+
   ; Energy
   ; Top Speed
   ; Current speed
@@ -37,11 +53,219 @@ end
 
 to go
   if not any? turtles [stop]
-  move-cyclists
+
+  ; The following is based off bird flocking: Wilensky, U. (1998). Netlogo ﬂocking model. Center for Connected Learning and Computer-Based Modeling, Northwestern University, Evanston, IL.
+  pack
+  coop
+  lead
+  move
+  wiggle
+
   finish-cyclists
   tick
 end
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Handle Agents ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+; Colors
+; red green blue brown black pink white violet magenta cyan 22 lime orange yellow turquoise sky 133 122 118 83 42 12 98 57  33
+to move
+  ask cyclists [
+    ;repeat 100 [ ask cyclists [ fd 0.01 ] display ]
+    fd speed ;0.2
+  ]
+end
+
+to wiggle
+  ; wiggle
+  ask cyclists [
+    rt random 1
+    lt random 1
+  ]
+end
+
+
+; Kill agent if at the end of the race, Just means that they are done.
+to finish-cyclists
+  ask patches with [ meaning = "finish"][
+    ask cyclists-here [stamp die]
+  ]
+end
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Procedures ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Identify lead ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+; Works if not in packs
+;to lead
+;  ask cyclists [
+;    ; set all leads to false
+;    set isLead? false
+;  ]
+;
+;  ; this will check 3 patches forward from current patch if there are any cyclists in a radius
+;  ask cyclists with [ not any? other cyclists in-cone 3 160 ][
+;      set isLead? true
+;      if turtle-meaning != "teamLead" [ set color yellow ]
+;    ]
+;
+;  ask cyclists with [ isLead? = false ][
+;    if turtle-meaning = "notTeam" [ set color magenta ]
+;    if turtle-meaning = "team" [ set color cyan ]
+;  ]
+;end
+
+
+; In packs
+to lead
+  ask cyclists [
+    ; set all leads to false
+    set isLead? false
+  ]
+
+  ask cyclists with [ any? mates and xcor >= max [xcor] of mates ] [
+      ; if there is a mate further ahead, set them as leader
+      set isLead? true
+  ]
+
+  ask cyclists with [ not any? mates ][
+    set isLead? true
+  ]
+
+  ask cyclists with [ turtle-meaning != "teamLead" and isLead? = true][
+    set color yellow
+  ]
+
+   ask cyclists with [ isLead? = false ][
+    if turtle-meaning = "notTeam" [ set color magenta ]
+    if turtle-meaning = "team" [ set color cyan ]
+  ]
+
+  ; Need to update cyclist speed to that of lead cyclist
+  ask cyclists [ updateSpeed ]
+
+  ; If lead is cooperative, then lead for 5 minutes, then move to back of pack
+  ;ask cyclist [ leading ]
+
+end
+
+to updateSpeed
+  ask cyclists [
+    set speed [ speed ] of mates with [ isLead? = true ]
+  ]
+end
+
+;set nearest-neighbor min-one-of mates [ distance myself ]
+
+;to leading
+;  ask cyclists with [ isLead? = true and isCoop? = true][
+
+;  ]
+;end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Cooperation ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+       ; if cooperation is less than 0.3 then the agent may or may not cooperate
+       ; if cooperation is above 0.3 then the agent will cooperate
+to coop
+  ask cyclists[
+    ifelse cooperation <= 0.3 [
+      set isCoop? one-of [true false]
+    ][
+      set isCoop? [true]
+    ]
+  ]
+end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Breakaway ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Flocking ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+to pack
+  ask cyclists[
+  find-mates
+  if any? mates    [ find-nearest-neighbor
+      ifelse distance nearest-neighbor < 0.1
+        [ separate ]
+        [ align
+          cohere ] ]
+  ]
+end
+
+to find-mates ;; turtle procedure
+  set mates other turtles in-radius 3 ; set radius to find teammates
+end
+
+to find-nearest-neighbor ;; turtle procedure
+  set nearest-neighbor min-one-of mates[ distance myself ] ; finds the neighbour with the minimum distance from cyclist
+end
+
+;;; SEPARATE
+
+; check crash probability before crashing
+; or maybe make slow down an option (either slow down or turn away)
+to separate  ;; turtle procedure
+  turn-away ([heading] of nearest-neighbor) 1  ; set angle that cyclicst can turn away from
+end
+
+;;; ALIGN
+
+to align  ;; turtle procedure
+  turn-towards average-matesheading 1  ; set angle that cyclist turns toward teamate
+  ; This just makes sure that if a turtle drifts too far away, that it will come back into the race
+  let closest-distance distance nearest-neighbor
+  if closest-distance > 3 [
+    turn-at-most (subtract-headings [heading] of nearest-neighbor heading) 90]
+end
+
+to-report average-matesheading  ;; turtle procedure
+  ;; We can't just average the heading variables here.
+  ;; For example, the average of 1 and 359 should be 0,
+  ;; not 180.  So we have to use trigonometry.
+  let x-component sum [dx] of mates  let y-component sum [dy] of mates  ifelse x-component = 0 and y-component = 0
+    [ report heading ]
+    [ report atan x-component y-component ]
+end
+
+to cohere  ;; turtle procedure
+  turn-towards average-heading-towards-mates 1
+end
+
+to-report average-heading-towards-mates ;; turtle procedure
+  ;; "towards myself" gives us the heading from the other turtle
+  ;; to me, but we want the heading from me to the other turtle,
+  ;; so we add 180
+  let x-component mean [sin (towards myself + 180)] of mates  let y-component mean [cos (towards myself + 180)] of mates  ifelse x-component = 0 and y-component = 0
+    [ report heading ]
+    [ report atan x-component y-component ]
+end
+
+to turn-towards [new-heading max-turn]  ;; turtle procedure
+  turn-at-most (subtract-headings new-heading heading) max-turn
+end
+
+to turn-away [new-heading max-turn]  ;; turtle procedure
+  turn-at-most (subtract-headings heading new-heading) max-turn
+end
+
+;; turn right by "turn" degrees (or left if "turn" is negative),
+;; but never turn more than "max-turn" degrees
+to turn-at-most [turn max-turn]  ;; turtle procedure
+  ifelse abs turn > max-turn
+    [ ifelse turn > 0
+        [ rt max-turn ]
+        [ lt max-turn ] ]
+    [ rt turn ]
+end
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Setup Environment ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 to draw-roads
     ; "ask patches with", this will ask patches with certain characteristics to do something
@@ -82,7 +306,7 @@ to draw-roads
   ]
 
 
-  ask patches with [ pycor > -10 and pycor < 10 and pxcor >= -60 and pxcor <= -50][
+  ask patches with [ pycor > -7 and pycor < 7 and pxcor = -60 ][;pycor > -10 and pycor < 10 and pxcor >= -60 and pxcor <= -50][
     sprout 1 [
       set shape "line"
       set color white
@@ -130,40 +354,31 @@ to draw-neighbourhood
   ]
 end
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Handle Agents ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Place Agents ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-; Try to assign teams by setting colours
 
-;to place-cyclists
-;  ask cyclists [
-;    set number 0
-;  ]
-
-;  repeat 7 [
-;    create-cyclists 25 [
-;    set size 1.5
-;    set heading 90
-;      set color one-of [red green blue brown black pink white violet magenta cyan 22 lime orange yellow turquoise sky 133 122 118 83 42 12 98 57  33]
-;    move-to one-of patches with [meaning = "start"]
-;  ]]
-  ; Form teams by grouping by color
-  ;ask n-of 175 cyclists[
-  ;  set color one-of [red green blue brown yellow orange pink black white]
-;  ]
-;end
 
 to place-cyclists
-  create-cyclists 175 [
+  create-cyclists 168 [
     set size 1.5
     set heading 90
     set color magenta
     set rider-mass 65
     set bike-mass 7
     set maxPower random-normal 7.1 0.4
-    set climber? one-of [true false]
-    set sprinter? one-of [true false]
+    set isClimber? one-of [true false]
+    set isSprinter? one-of [true false]
     set cooperation random-normal 0.48 0.2
-    set energy 100
+    set energy random 100
+    set breakaway_prob random-normal 0.3 0.1 ; selection of 0.3 and 0.1 is quite random at the moment
+    set team -100000 ; so that they aren't included in calculations only do for teamwork > 0
+    set turtle-meaning "notTeam"
+    set isLead? false
+
+    set speed random-normal 0.5 0.05
+
     ;set maxSpeed
     move-to one-of patches with [meaning = "start"]
   ]
@@ -172,6 +387,23 @@ to place-cyclists
     set size 1.5
     set heading 90
     set color cyan
+
+    set rider-mass 65
+    set bike-mass 7
+    if teamAbility = "Good" [ set maxPower random-normal 8 0.4 ]
+    if teamAbility = "Average" [ set maxPower random-normal 7.1 0.4 ]
+    if teamAbility = "Bad" [ set maxPower random-normal 6 0.4 ]
+    set isClimber? one-of [true false]
+    set isSprinter? one-of [true false]
+    set cooperation random-normal 0.48 0.2
+    set energy 100
+    set breakaway_prob random-normal 0.3 0.1 ; selection of 0.3 and 0.1 is quite random at the moment
+    set team teamWork
+    set turtle-meaning "team"
+    set isLead? false
+
+    set speed random-normal 0.5 0.05
+
     move-to one-of patches with [meaning = "start"]
   ]
 
@@ -179,44 +411,32 @@ to place-cyclists
     set size 1.5
     set heading 90
     set color blue
+    set rider-mass leadWeight
+    set bike-mass 7
+    set maxPower leadPower
+    set isClimber? leadClimber
+    set isSprinter? leadSprinter
+    set cooperation leadCooperation
+    set energy leadEnergy
+    set breakaway_prob random-normal 0.3 0.1 ; selection of 0.3 and 0.1 is quite random at the moment
+    set turtle-meaning "teamLead"
+    set isLead? false
+
+    set speed random-normal 0.5 0.05
+
     move-to one-of patches with [meaning = "start"]
-  ]
-end
-
-to move-cyclists
-
-  ;if [meaning] of patch-ahead 1 = "sideline" and ycor > 0 [
-  ;  ask cyclists-here [rt random 15]
-  ;]
-  ;if [meaning] of patch-ahead 1 = "sideline" and ycor < 0 [
-  ;  ask cyclists-here [lt random 15]
-  ;]
-  ;align-cyclists
-
-  ask cyclists [
-    fd 0.2
-    rt random 0.5
-    lt random 0.5
-  ]
-end
-
-
-; Kill agent if at the end of the race, Just means that they are done.
-to finish-cyclists
-  ask patches with [ meaning = "finish"][
-    ask cyclists-here [stamp die]
   ]
 end
 
 @#$#@#$#@
 GRAPHICS-WINDOW
-132
-220
-766
-648
+8
+10
+984
+667
 -1
 -1
-5.18
+8.0
 1
 10
 1
@@ -224,23 +444,23 @@ GRAPHICS-WINDOW
 1
 0
 1
-1
+0
 1
 -60
 60
 -40
 40
-0
-0
+1
+1
 1
 ticks
 1.0
 
 BUTTON
-67
-93
-130
-126
+991
+12
+1054
+45
 go
 go
 T
@@ -254,10 +474,10 @@ NIL
 1
 
 BUTTON
-197
-117
-260
-150
+991
+54
+1054
+87
 setup
 setup
 NIL
@@ -269,6 +489,113 @@ NIL
 NIL
 NIL
 1
+
+SWITCH
+1375
+159
+1496
+192
+leadClimber
+leadClimber
+1
+1
+-1000
+
+SWITCH
+1505
+159
+1628
+192
+leadSprinter
+leadSprinter
+1
+1
+-1000
+
+SLIDER
+996
+160
+1168
+193
+leadPower
+leadPower
+4
+10
+7.1
+0.1
+1
+W/kg
+HORIZONTAL
+
+CHOOSER
+1073
+41
+1211
+86
+teamAbility
+teamAbility
+"Good" "Average" "Bad"
+0
+
+SLIDER
+1229
+52
+1401
+85
+teamWork
+teamWork
+0
+1
+0.5
+0.1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+1190
+160
+1362
+193
+leadEnergy
+leadEnergy
+0
+100
+52.0
+1
+1
+kiloJoules
+HORIZONTAL
+
+SLIDER
+995
+113
+1167
+146
+leadWeight
+leadWeight
+60
+100
+63.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+1190
+110
+1362
+143
+leadCooperation
+leadCooperation
+0
+1
+0.5
+0.1
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
