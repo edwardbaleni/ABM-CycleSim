@@ -73,7 +73,6 @@ to go
 
   updateSpeed               ; Update speed of the group
 
- ; updateDistance            ; Update distance travelled by group
 
   finish-cyclists
   tick
