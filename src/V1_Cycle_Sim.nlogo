@@ -51,6 +51,10 @@ to setup
   draw-neighbourhood
   ;draw-elevation
   place-cyclists
+  ask cyclists [
+    set maxSpeed calcMaxSpeed
+    show maxSpeed
+  ]
   reset-ticks
 end
 
@@ -197,7 +201,51 @@ end
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Breakaway ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Power Equations ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+
+to-report calcMaxSpeed
+  ; Newton-Raphson method to calculate cubic roots
+  let hold 0
+  let threshold 1000
+  let v 12
+
+  while [ threshold > 0.00000000001 ] [
+    set hold v
+    set v (v - ( ( 0.0053 * 9.8 * ( rider-mass + bike-mass ) * v ) + (0.185 * v ^ 3) - maxPower * rider-mass ) /  ( ( 0.0053 * 9.8 * ( rider-mass + bike-mass ) ) + 3 * (0.185 * v ^ 2) ))
+    set threshold abs(v -  hold)
+  ]
+
+  report v
+end
+
+; d_w should be the distance between cyclist and cyclist in front, using in-cone will help
+to-report powerEqns [ d_w v ]
+  ; There is no drafting benefit available if a cyclist is more than 3 metres away from preceding rider, so set CF_draft to 1 if this is the case
+  ;CF_draft =  0.62 − 0.0104 d_w + 0.0452 d_w^2
+  let CF_draft 1
+  if d_w <= 3 [
+    set CF_draft ( 0.62 - 0.0104 * d_w + 0.0452 * d_w ^ 2) ]
+
+  ;P_air is the power needed by the cyclist to overcome air-resistance, corrected for drafting
+  ;P_air    = k . CF_draft . velocity^3
+  let P_air (0.185 * CF_draft * v ^ 3)
+
+  ; P_roll is the power required to overcome rolling resistance
+  ;P_roll   = C_r . g . ( M + M_b) . v
+  let P_roll ( 0.0053 * 9.8 * ( rider-mass + bike-mass ) * v )
+
+  ; To incorporate elevation will need to use P_grade ( so not looking at elevation until the very end ) - T. Olds
+
+  ;P_tot    = P_roll + P_air
+  let P_tot (P_roll + P_air)
+
+  report ( P_tot / maxPower)
+end
+
+;to-report energyEqns
+
+;end
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Flocking ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 to pack
@@ -212,7 +260,7 @@ to pack
 end
 
 to find-mates ;; turtle procedure
-  set mates other turtles in-radius 3 ; set radius to find teammates
+  set mates other turtles in-radius 2 ; set radius to find teammates
 end
 
 to find-nearest-neighbor ;; turtle procedure
@@ -224,7 +272,7 @@ end
 ; check crash probability before crashing
 ; or maybe make slow down an option (either slow down or turn away)
 to separate  ;; turtle procedure
-  turn-away ([heading] of nearest-neighbor) 1  ; set angle that cyclicst can turn away from
+  turn-away ([heading] of nearest-neighbor) 2  ; set angle that cyclicst can turn away from
 end
 
 ;;; ALIGN
@@ -279,8 +327,10 @@ end
 
 
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Setup Environment ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Setup Environment ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 to draw-roads
     ; "ask patches with", this will ask patches with certain characteristics to do something
   ask patches with [ pycor > -20 and pycor < 20] [
@@ -320,7 +370,7 @@ to draw-roads
   ]
 
 
-  ask patches with [ pycor > -7 and pycor < 7 and pxcor = min-pxcor ][
+  ask patches with [ pycor > -7 and pycor < 7 and pxcor >= min-pxcor and pxcor <= min-pxcor + 3 ][
     sprout 1 [
       set shape "line"
       set color white
