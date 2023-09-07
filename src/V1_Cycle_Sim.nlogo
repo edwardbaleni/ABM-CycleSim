@@ -20,9 +20,10 @@ cyclists-own[
 
   nearest-neighbor              ; Looks for the cyclist's nearest neighbours
   leader                        ; Identify leader of pack and assign to each agent
+  breakLead                     ; BreakLeader
 
-  breakaway_prob                ; The probability that members of a team will follow a breakaway
-  breakaway                     ; Decide if the
+  isBreak?                      ; The probability that members of a team will follow a breakaway
+  ;breakaway                    ; Decide if the leader will breakaway
 
   crash-prob                    ; The probability that the cyclist will crash
   aggression                    ; A cyclists level of aggression
@@ -73,8 +74,6 @@ to go
 
   updateSpeed               ; Update speed of the group
 
- ; updateDistance            ; Update distance travelled by group
-
   finish-cyclists
   tick
 end
@@ -82,21 +81,23 @@ end
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Handle Agents ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to move
+  repeat 5 [               ; Repeat this 5 times, this means that the lead will lead for 5 minutes
   ask cyclists [
     ;defectSpeed              ; If rider has lead for 5 minutes or rider is a defector, then they are given a slower speed to move to the back
-    repeat 5 [               ; Repeat this 5 times, this means that the lead will lead for 5 minutes
       fd speed / 16.67       ; Move foward km/min
       ;wiggle
       set dist dist + speed / 16.67
       ;set energy
+      ;pack
+    ;show dist
     ]
-    show dist
+    display
   ]
 end
 
 to wiggle
   ; wiggle
-  rt random one-of [ -1 1]
+  rt random one-of [ -1 1 ]
 end
 
 
@@ -122,19 +123,36 @@ to lead
   ; Send them there by throwing them back, need to shuffle them back, this is a quick fix for now
   ask cyclists with [any? mates and isLead? = true][
     set hasLead? true
-    move-to-back
+    ;move-to-back
   ]
 
-  ask cyclists [ set isLead? false ]
-
-
-  ask cyclists with [ any? mates and xcor > max [xcor] of mates ] [
-      ; if there is a mate further ahead, set them as leader
-      set isLead? true
+  ask cyclists [
+    set isLead? false
+    set isBreak? false
   ]
 
-  ask cyclists with [ isLead? = true and coop? = false][
 
+  ;ask cyclists with [ any? mates and xcor > max [xcor] of mates ] [
+  ;    ; if there is a mate further ahead, set them as leader
+  ;  ifelse isCoop? = true [
+  ;    set isLead? true
+  ;  ][
+  ;    ifelse 0.8 * maxSpeed < speed [ move-to-back ][
+  ;      set isBreak? true
+  ;    ]
+  ;    ; If coop? is false the closest agent is the new leader
+  ;    find-nearest-neighbor
+  ;    set isLead? [true] of nearest-neighbor
+  ;  ]
+  ;]
+
+  ask cyclists with [ any? mates and xcor >= max [ xcor ] of mates ] [
+    ifelse hasLead? = true [
+      find-nearest-neighbor
+      set isLead? [true] of nearest-neighbor                            ; If been leader for 5 minutes already, set next rider as leader
+    ][
+      set isLead? true                                                  ; If have not been leader, set as leader
+    ]
   ]
 
   ask cyclists with [ not any? mates ][
@@ -162,13 +180,28 @@ end
 to updateSpeed
   ask cyclists [
     set leader min-one-of cyclists with [ isLead? = true ] [distance myself]
-    set speed [ 0.8 * maxSpeed ] of leader
+    ;set speed [ 0.8 * maxSpeed ] of leader
     ;;;;;;;;; if I can sort out the flocking issues, then this might be the solution to the problem of shuffling back in the pack
-    ;ifelse hasLead? = false[
-    ;  set speed [ 0.8 * maxSpeed ] of leader][
-    ;  set speed [ 0.6 * maxSpeed ] of leader
-    ;]
+    ifelse hasLead? = false[
+      set speed [ 0.8 * maxSpeed ] of leader][
+      set color orange
+      set speed [ 0.3 * maxSpeed ] of leader
+    ]
     ;show speed
+    ;breakaway
+  ]
+end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Breakaway ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+to breakaway
+  if isBreak? = true [
+    set speed 0.9 * maxSpeed
+  ]
+
+  if isBreakawayCoop? = true [
+    set breakLead min-one-of cyclists with [ isBreak? = true ] [distance myself]
+    set speed [ 0.9 * maxSpeed ] of breakLead
   ]
 end
 
@@ -191,10 +224,15 @@ to breakawayCoop
     ifelse breakawayCooperation <= 0.2 [
       set isBreakawayCoop? one-of [true false]
     ][
-      set isBreakawayCoop? [true]
+      set isBreakawayCoop? [false]
     ]
+    ;show isBreakawayCoop?
   ]
 end
+
+;to-report probability [ p ]
+;  report random-float 1 < p
+;end
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Breakaway ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
@@ -249,7 +287,7 @@ to pack
   ask cyclists[
   find-mates
   if any? mates    [ find-nearest-neighbor
-      ifelse distance nearest-neighbor < 0.3
+      ifelse distance nearest-neighbor < 0.5
         [ separate ]
         [ align
           cohere ] ]
@@ -267,13 +305,23 @@ end
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Flocking ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to separate
-  turn-away ([heading] of nearest-neighbor) 1  ; set angle that cyclicst can turn away from
+  turn-away ([heading] of nearest-neighbor) sep  ; set angle that cyclicst can turn away from
+  ;ifelse random-float 1 < 0.9 [ turn-sep] [slow-down]       ; If I want my agents to either slow down or turn away
+end
+
+to turn-sep
+  turn-away ([heading] of nearest-neighbor) sep
+end
+
+to slow-down
+  set speed 0.97 * speed
 end
 
 ;;;;;;;;;;;;;;;;;;;;; ALIGN
 
 to align  ;; turtle procedure
-  turn-towards average-matesheading 1  ; set angle that cyclist turns toward teamate
+  set heading 90
+  ;turn-towards average-matesheading 1  ; set angle that cyclist turns toward teamate
   ; This just makes sure that if a turtle drifts too far away, that it will come back into the race
   ;let closest-distance distance nearest-neighbor
   ;if closest-distance > 3 [
@@ -288,7 +336,7 @@ to-report average-matesheading  ;; turtle procedure
 end
 
 to cohere  ;; turtle procedure
-  turn-towards average-heading-towards-mates 1
+  turn-towards average-heading-towards-mates coh
 end
 
 to-report average-heading-towards-mates
@@ -323,26 +371,21 @@ end
 
 to draw-roads
     ; "ask patches with", this will ask patches with certain characteristics to do something
-  ask patches with [ pycor > -20 and pycor < 20] [
+  ask patches with [ pycor > -15 and pycor < 15] [
       set pcolor grey
     ]
 
    ; set up yellow lines on side walk
-  ask patches with [pycor > -19 and pycor < -17 and pxcor <= 145 or pycor > 17 and pycor < 19 and pxcor <= 145][
+  ask patches with [pycor > -14 and pycor < -12 and pxcor <= 145 or pycor > 12 and pycor < 14 and pxcor <= 145][
      sprout 1 [
       set shape "sideline"
-  ]]
-
-   ; set up yellow lines on side walk
-  ask patches with [pycor > -19 and pycor < -17 and pxcor > 40 and pxcor <= 55 or pycor > 17 and pycor < 19 and pxcor > 40 and pxcor <= 55][
-     sprout 1 [
-      set shape "sideline"
+      stamp die
   ]]
 
   ; https://www.cyclingnews.com/races/tour-of-flanders-2023/map/
   ; Link above shows where the key climbs are and where the key cobbles are
   ; Below is just an example of setting cobbles
-  ask patches with [ pxcor <= 40 and pxcor > 20 and pycor > -20 and pycor < 20][
+  ask patches with [ pxcor <= 40 and pxcor > 15 and pycor > -15 and pycor < 15][
     sprout 1 [
       set shape "cobbles"
       set color brown
@@ -352,7 +395,7 @@ to draw-roads
   ]
 
   ; Setup finish line
-  ask patches with [ pxcor <= max-pxcor and pxcor > 145 and pycor > -20 and pycor < 20] [
+  ask patches with [ pxcor <= max-pxcor and pxcor > 145 and pycor > -15 and pycor < 15] [
     sprout 1 [
       set shape "finish"
       stamp die]
@@ -372,7 +415,7 @@ end
 
 to draw-neighbourhood
   ; Draw grass
-  ask patches with [pycor <= -20 or pycor >= 20] [
+  ask patches with [pycor <= -15 or pycor >= 15] [
       let g random 16 + 96
       let c (list 0 g 0)
       set pcolor c
@@ -412,8 +455,6 @@ end
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Place Agents ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-
-
 to place-cyclists
   create-cyclists 168 [
     set size 1.5
@@ -426,11 +467,12 @@ to place-cyclists
     set isSprinter? one-of [true false]
     set cooperation random-normal 0.48 0.2
     set energy random 100
-    set breakaway_prob random-normal 0.3 0.1 ; selection of 0.3 and 0.1 is quite random at the moment
+    set breakawayCooperation random-normal 0.3 0.1 ; selection of 0.3 and 0.1 is quite random at the moment
     set team -100000 ; so that they aren't included in calculations only do for teamwork > 0
     set turtle-meaning "notTeam"
     set isLead? false
 
+    set isBreak? false
     set hasLead? false
 
     set speed random-normal 12 0.5
@@ -454,7 +496,10 @@ to place-cyclists
     set isSprinter? one-of [true false]
     set cooperation random-normal 0.48 0.2
     set energy 100
-    set breakaway_prob random-normal 0.3 0.1 ; selection of 0.3 and 0.1 is quite random at the moment
+
+    set breakawayCooperation random-normal 0.3 0.1 ; selection of 0.3 and 0.1 is quite random at the moment
+    set isBreak? false
+
     set team teamWork
     set turtle-meaning "team"
     set isLead? false
@@ -479,11 +524,13 @@ to place-cyclists
     set isSprinter? leadSprinter
     set cooperation leadCooperation
     set energy leadEnergy
-    set breakaway_prob random-normal 0.3 0.1 ; selection of 0.3 and 0.1 is quite random at the moment
+    set breakawayCooperation random-normal 0.3 0.1 ; selection of 0.3 and 0.1 is quite random at the moment
     set turtle-meaning "teamLead"
     set isLead? false
 
     set hasLead? false
+
+    set isBreak? false
 
     set speed random-normal 12 0.5
 
@@ -625,7 +672,7 @@ leadEnergy
 leadEnergy
 0
 100
-52.0
+54.0
 1
 1
 kiloJoules
@@ -656,6 +703,36 @@ leadCooperation
 0
 1
 0.5
+0.1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+844
+508
+1016
+541
+sep
+sep
+0
+10
+1.5
+0.1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+1040
+507
+1212
+540
+coh
+coh
+0
+10
+1.0
 0.1
 1
 NIL
