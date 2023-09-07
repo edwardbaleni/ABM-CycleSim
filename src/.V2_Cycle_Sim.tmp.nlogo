@@ -1,89 +1,151 @@
-; Define agents
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Define Environment ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 breed [ cyclists cyclist ]
 breed [ persons person ]
 
-; Define characteristics of agentss and environment
- ; cylclists:
-cyclists-own [ start ] ; define starting positions
+cyclists-own[
+  rider-mass                    ; Cyclist weight
+  bike-mass                     ; Bike weight
+  energy                        ; ...
+  maxPower                      ; Maximum power a cyclist can produce for 10 minutes
+  maxSpeed                      ; Maximum speed that cyclist can travel
+  speed                         ; Current speed that agent is travelling
+  cooperation                   ; Cooperation probability of the group, assigns each cyclist in a pack a probability of cooperation
+  isCoop?                       ; Allocate true or false if the cyclist is cooperative or not, respectively
+  isLead?                       ; Allocate whether cyclist is in the front of the pack or not
+  mates                         ; Allocates teammates generally to cyclist not for actual team
+
+  nearest-neighbor              ; Looks for the cyclist's nearest neighbours
+  leader                        ; Identify leader of pack and assign to each agent
+
+  breakaway_prob                ; The probability that members of a team will follow a breakaway
+
+  crash-prob                    ; The probability that the cyclist will crash
+  aggression                    ; A cyclists level of aggression
+  turtle-meaning                ; Set meaning
+
+
+  ]
+
   ; Energy
   ; Top Speed
   ; Current speed
   ; Acceleration  ; might just standardise this
-  ; Climber
-  ; Sprinter
+  ; Climber?
+  ; Sprinter?
+  ; Team
 
- ; persons
-  ; temperment
-  ; excitement
-  ; Visibility
+patches-own[
+  meaning ; role fo the patch
+]
 
-; create environment
-to setup
-  clear-all    ;
-  draw-roads
-  draw-grass
-  ;draw-homes
-  ;draw-elevation
-  place-cyclists
-  ;place persons
-  reset-ticks
-  ;tick
-end
 
-to go
-  move-cyclists
-  ;move-people
-  tick
-end
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Setup Environment ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Setup Environment ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 to draw-roads
     ; "ask patches with", this will ask patches with certain characteristics to do something
-  ask patches [
-    if pycor > -20 and pycor < 20 [
+  ask patches with [ pycor > -20 and pycor < 20] [
       set pcolor grey
     ]
+
+   ; set up yellow lines on side walk
+  ask patches with [pycor > -19 and pycor < -17 and pxcor <= 145 or pycor > 17 and pycor < 19 and pxcor <= 145][
+     sprout 1 [
+      set shape "sideline"
+  ]]
+
+   ; set up yellow lines on side walk
+  ask patches with [pycor > -19 and pycor < -17 and pxcor > 40 and pxcor <= 55 or pycor > 17 and pycor < 19 and pxcor > 40 and pxcor <= 55][
+     sprout 1 [
+      set shape "sideline"
+  ]]
+
+  ; https://www.cyclingnews.com/races/tour-of-flanders-2023/map/
+  ; Link above shows where the key climbs are and where the key cobbles are
+  ; Below is just an example of setting cobbles
+  ask patches with [ pxcor <= 40 and pxcor > 20 and pycor > -20 and pycor < 20][
+    sprout 1 [
+      set shape "cobbles"
+      set color brown
+      stamp die
+    ]
+    set meaning "cobbles" ; can use this in if statements to set conditions of cobbles
+  ]
+
+  ; Setup finish line
+  ask patches with [ pxcor <= max-pxcor and pxcor > 145 and pycor > -20 and pycor < 20] [
+    sprout 1 [
+      set shape "finish"
+      stamp die]
+    set meaning "finish" ; can use this in if statements to set conditions of cobbles
+  ]
+
+
+  ask patches with [ pycor > -7 and pycor < 7 and pxcor >= min-pxcor and pxcor <= min-pxcor + 3 ][
+    sprout 1 [
+      set shape "line"
+      set color white
+      set size 5
+      stamp die]
+    set meaning "start"
   ]
 end
 
-to draw-grass
-  ask patches [
-    if pycor <= -20 or pycor >= 20[
+to draw-neighbourhood
+  ; Draw grass
+  ask patches with [pycor <= -20 or pycor >= 20] [
       let g random 16 + 96
       let c (list 0 g 0)
       set pcolor c
+      set meaning "grass"
+  ]
+
+
+  ; Draw homes
+  ask n-of 50 patches with [ meaning = "grass"][
+     if count neighbors with [meaning = "grass"] = 8 and not any? turtles in-radius 2[
+      sprout 1 [
+        set shape one-of ["house" "house colonial" "house two story"]
+        set size 6
+        stamp die
+      ]
     ]
+    set meaning "house"
+  ]
+
+  ; Draw trees
+  ask patches with [meaning = "grass"][
+    if count neighbors with [meaning = "grass"] = 8 and not any? patches with [meaning = "houses"] in-radius 4 or not any? turtles in-radius 1 [
+      if random 100 > 95 [
+        sprout 1 [
+          set shape one-of [ "tree" "tree pine" ]
+          set size 4
+          set color green
+          stamp die
+        ]
+      ]
+    ]
+    set meaning "tree"
   ]
 end
-
-to place-cyclists
-  ask n-of 100 patches with [ pycor > -10 and pycor < 10 and pxcor >= -60 and pxcor <= -50 ][
-    sprout-cyclists 1 [
-      set heading 90
-      set color red
-  ]
- ]
-end
-
-to move-cyclists
-  ask cyclists [
-    straight
-  ]
-end
-
-to straight
-  fd 1
-end
-
 @#$#@#$#@
 GRAPHICS-WINDOW
-132
-220
-766
-648
+6
+10
+1519
+424
 -1
 -1
-5.18
+5.0
 1
 10
 1
@@ -91,10 +153,10 @@ GRAPHICS-WINDOW
 1
 0
 1
+0
 1
-1
--60
-60
+-150
+150
 -40
 40
 0
@@ -102,40 +164,6 @@ GRAPHICS-WINDOW
 1
 ticks
 30.0
-
-BUTTON
-67
-93
-130
-126
-go
-go
-T
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
-
-BUTTON
-197
-117
-260
-150
-setup
-setup
-NIL
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
 
 @#$#@#$#@
 ## WHAT IS IT?
