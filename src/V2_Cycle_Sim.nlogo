@@ -1,39 +1,364 @@
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Define Environment ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
+globals[ xmin xmax ymin ymax ]
 breed [ cyclists cyclist ]
-breed [ persons person ]
 
 cyclists-own[
   rider-mass                    ; Cyclist weight
   bike-mass                     ; Bike weight
-  energy                        ; ...
-  maxPower                      ; Maximum power a cyclist can produce for 10 minutes
+  energy                        ; Energy left in the race
   maxSpeed                      ; Maximum speed that cyclist can travel
   speed                         ; Current speed that agent is travelling
+  maxPower                      ; Maximum power a cyclist can produce for 10 minutes
   cooperation                   ; Cooperation probability of the group, assigns each cyclist in a pack a probability of cooperation
+  ;breakawayCooperation          ; Assign a probability if cyclists will defect with leader
+  isBreakawayCoop?              ; Decide if the cyclist will defect with leader
   isCoop?                       ; Allocate true or false if the cyclist is cooperative or not, respectively
   isLead?                       ; Allocate whether cyclist is in the front of the pack or not
   mates                         ; Allocates teammates generally to cyclist not for actual team
+  group                         ; Allocates the full team including cyclist-here
 
   nearest-neighbor              ; Looks for the cyclist's nearest neighbours
   leader                        ; Identify leader of pack and assign to each agent
+  breakLead                     ; BreakLeader, identifies cyclist that will lead break
 
-  breakaway_prob                ; The probability that members of a team will follow a breakaway
+  isBreak?                      ; The probability of breaking away
 
   crash-prob                    ; The probability that the cyclist will crash
   aggression                    ; A cyclists level of aggression
   turtle-meaning                ; Set meaning
+
+  hasLead?                      ;
+
+  dist                          ; Calculate the distance travelled for each turtle (Do it in groups)
+
+  isClimber?                    ; Indicate if the cyclist is a climber
+  isSprinter?                   ; Indicate if the cyclist is a sprinter
+  ; For team and individual
+
+  team                          ; for team work of our actual team (teamwork)
   ]
 
 patches-own[
   meaning
 ]
 
+; create environment
+to setup
+  clear-all
+  set ymin -15
+  set ymax 15
+  draw-roads
+  draw-neighbourhood
+  ;draw-elevation
+  place-cyclists
+  ;ask cyclists [
+    ;show maxSpeed
+    ;show maxPower
+    ;show dist
+  ;]
+  reset-ticks
+end
+
+to go
+  if not any? turtles [stop]
+
+  move                      ; Move agents for 5 minutes (one tick is one minute)
+
+  pack                      ; Perfom flocking mechanism
+
+  ;crash                     ; Probability of crashing
+
+  lead                      ; Find leader in group and move prvious lead to the back
+
+  coop                      ; Find probability that turtles are cooperative
+
+  breakawayCoop             ; Find probability that turtles will breakAway with Leader
+
+  updateSpeed               ; Update speed of the group
+
+  finish-cyclists
+  tick
+end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Handle Agents ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+to move
+  repeat 8 [               ; Repeat this 5 times, this means that the lead will lead for 5 minutes
+  ask cyclists [
+    ;defectSpeed              ; If rider has lead for 5 minutes or rider is a defector, then they are given a slower speed to move to the back
+      fd speed * 0.06       ; Move foward km/min
+      set energy energyEqns
+      ;pack
+      show energy
+    ]
+    display
+  ]
+  ask cyclists [set dist dist + speed * 0.06 * 8]
+end
+
+to finish-cyclists
+  ask patches with [ meaning = "finish"][
+    ask cyclists-here [stamp die]
+  ]
+end
 
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Procedures ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Identify lead ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+to lead
+
+  ask cyclists [ set hasLead? false ]
+
+  ask cyclists with [any? mates and isLead? = true or isBreak? = true][
+    set hasLead? true
+  ]
+
+  ask cyclists [
+    set isLead? false
+  ]
+
+  ask cyclists with [ any? mates and xcor >= max [ xcor ] of mates ] [
+    ifelse hasLead? = true [
+      find-nearest-neighbor
+      ask nearest-neighbor [set isLead? true] ;of nearest-neighbor                            ; If been leader for 5 minutes already, set next rider as leader
+    ][
+      set isLead? true                                                  ; If have not been leader, set as leader
+    ]
+  ]
+
+  ask cyclists with [ not any? mates ][
+    set isLead? true
+  ]
+
+  ask cyclists with [ turtle-meaning != "teamLead" and isLead? = true][
+    set color yellow
+  ]
+
+   ask cyclists with [ isLead? = false ][
+    if turtle-meaning = "notTeam" [ set color magenta ]
+    if turtle-meaning = "team" [ set color cyan ]
+    if turtle-meaning = "teamLead" [ set color blue ]
+  ]
+
+end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Update ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+to updateSpeed
+  ask cyclists [
+    set leader min-one-of cyclists with [ isLead? = true ] [distance myself]
+    ask leader [ set speed 0.8 * mean [ maxSpeed ] of group]
+
+    ifelse hasLead? = false [
+      set speed [ speed ] of leader
+    ][
+      if any? mates [
+      set color orange
+      set speed [ 0.7 * speed ] of leader
+      ]
+    ]
+  ]
+
+  ask cyclists with [ isLead? = true and isCoop? = false and maxSpeed * 0.8 > speed ] [
+    set isBreak? true
+    set isLead? false
+    breakaway
+  ]
+
+
+  ask cyclists with [isBreakawayCoop? = true and any? mates with [isBreak? = true]][
+    join-Breakaway
+  ]
+
+  ask cyclists [
+    set isBreak? false
+    set isBreakawayCoop? true
+  ]
+end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Breakaway ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+to breakaway
+    set speed 0.9 * maxSpeed
+    set color green
+end
+
+to join-Breakaway
+  set breakLead min-one-of mates with [ isBreak? = true ] [ distance myself]
+  set speed [speed] of breakLead
+  set color 37
+end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Cooperation ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+       ; if cooperation is less than 0.3 then the agent may or may not cooperate
+       ; if cooperation is above 0.3 then the agent will cooperate
+to coop
+  ask cyclists[
+    ifelse random-float 1 < cooperation [
+      set isCoop? false
+    ][
+      set isCoop? true
+    ]
+  ]
+end
+
+to breakawayCoop
+  ask cyclists[
+    ifelse random-float 1 <= 0.4 [
+      set isBreakawayCoop? true
+    ][
+      set isBreakawayCoop? false
+    ]
+  ]
+end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Power Equations ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+to-report calcMaxSpeed
+  ; Newton-Raphson method to calculate cubic roots
+  let hold 0
+  let threshold 1000
+  let v 12
+
+  while [ threshold > 0.00000000001 ] [
+    set hold v
+    set v (v - ( ( 0.0053 * 9.8 * ( rider-mass + bike-mass ) * v ) + (0.185 * v ^ 3) - maxPower * rider-mass ) /  ( ( 0.0053 * 9.8 * ( rider-mass + bike-mass ) ) + 3 * (0.185 * v ^ 2) ))
+    set threshold abs(v -  hold)
+  ]
+
+  report v
+end
+
+; d_w should be the distance between cyclist and cyclist in front, using in-cone will help
+to-report powerEqns [ d_w v ]
+  ; There is no drafting benefit available if a cyclist is more than 3 metres away from preceding rider, so set CF_draft to 1 if this is the case
+  ;CF_draft =  0.62 − 0.0104 d_w + 0.0452 d_w^2
+  let CF_draft 1
+  if d_w <= 3 [
+    set CF_draft ( 0.62 - 0.0104 * d_w + 0.0452 * d_w ^ 2)
+  ]
+
+  ;P_air is the power needed by the cyclist to overcome air-resistance, corrected for drafting
+  ;P_air    = k . CF_draft . velocity^3
+  let P_air (0.185 * CF_draft * v ^ 3)
+
+  ; P_roll is the power required to overcome rolling resistance
+  ;P_roll   = C_r . g . ( M + M_b) . v
+  let P_roll ( 0.0053 * 9.8 * ( rider-mass + bike-mass ) * v )
+
+  ; To incorporate elevation will need to use P_grade ( so not looking at elevation until the very end ) - T. Olds
+
+  ;P_tot    = P_roll + P_air
+  let P_tot (P_roll + P_air)
+
+  report ( P_tot / maxPower )
+end
+
+to-report energyEqns
+  let d 100
+  let vel 0
+  let close other turtles in-cone 3 160
+  let closest min-one-of close [distance myself]
+  ifelse any? other cyclists in-cone 3 160 [
+    set d distance closest
+  ][
+    set d 100
+  ]
+  set vel speed * 0.06
+  ;show d
+ report (energy - ( e ^ ( -6.35 * ln (powerEqns d vel) + 2.478 ) ) * 60)
+end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Flocking ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+to pack
+  ask cyclists[
+  find-mates
+  find-group
+  ifelse any? mates [ find-nearest-neighbor
+      ifelse distance nearest-neighbor < 0.0005
+        [ separate ]
+        [ align
+          cohere ] ] [ set heading 90]
+  ]
+end
+
+to find-group
+  set group turtles in-radius (vision * 0.001)
+end
+to find-mates
+  set mates other turtles in-radius vision ; set radius to find teammates
+end
+
+to find-nearest-neighbor ;; turtle procedure
+  set nearest-neighbor min-one-of mates[ distance myself ] ; finds the neighbour with the minimum distance from cyclist
+end
+
+to separate
+  turn-away ([heading] of nearest-neighbor) sep  ; set angle that cyclicst can turn away from
+  ; ifelse random-float 1 < 0.9 [ turn-sep] [slow-down]       ; If I want my agents to either slow down or turn away
+end
+
+to turn-sep
+  turn-away ([heading] of nearest-neighbor) sep
+end
+
+to slow-down
+  set speed 0.97 * speed
+end
+
+;;;;;;;;;;;;;;;;;;;;; ALIGN
+
+to align  ;; turtle procedure
+  set heading 90
+  ;turn-towards average-matesheading 1  ; set angle that cyclist turns toward teamate
+  ; This just makes sure that if a turtle drifts too far away, that it will come back into the race
+  ;let closest-distance distance nearest-neighbor
+  ;if closest-distance > 3 [
+  ;  turn-at-most (subtract-headings [heading] of nearest-neighbor heading) 5]
+end
+
+to-report average-matesheading  ;; turtle procedure
+  ; average heading
+  let x-component sum [dx] of mates  let y-component sum [dy] of mates  ifelse x-component = 0 and y-component = 0
+    [ report heading ]
+    [ report atan x-component y-component ]
+end
+
+to cohere  ;; turtle procedure
+  turn-towards average-heading-towards-mates coh
+end
+
+to-report average-heading-towards-mates
+  let x-component mean [sin (towards myself + 180)] of mates  let y-component mean [cos (towards myself + 180)] of mates  ifelse x-component = 0 and y-component = 0
+    [ report heading ]
+    [ report atan x-component y-component ]
+end
+
+to turn-towards [new-heading max-turn]
+  turn-at-most (subtract-headings new-heading heading) max-turn
+end
+
+to turn-away [new-heading max-turn]
+  turn-at-most (subtract-headings heading new-heading) max-turn
+end
+
+;; turn right by "turn" degrees (or left if "turn" is negative),
+;; but never turn more than "max-turn" degrees
+to turn-at-most [turn max-turn]  ;; turtle procedure
+  ifelse abs turn > max-turn
+    [ ifelse turn > 0
+        [ rt max-turn ]
+        [ lt max-turn ] ]
+    [ rt turn ]
+end
 
 
 
@@ -42,27 +367,11 @@ patches-own[
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to draw-roads
-    ; "ask patches with", this will ask patches with certain characteristics to do something
-  ask patches with [ pycor > -20 and pycor < 20] [
+  ask patches with [ pycor > ymin and pycor < ymax] [
       set pcolor grey
     ]
 
-   ; set up yellow lines on side walk
-  ask patches with [pycor > -19 and pycor < -17 and pxcor <= 145 or pycor > 17 and pycor < 19 and pxcor <= 145][
-     sprout 1 [
-      set shape "sideline"
-  ]]
-
-   ; set up yellow lines on side walk
-  ask patches with [pycor > -19 and pycor < -17 and pxcor > 40 and pxcor <= 55 or pycor > 17 and pycor < 19 and pxcor > 40 and pxcor <= 55][
-     sprout 1 [
-      set shape "sideline"
-  ]]
-
-  ; https://www.cyclingnews.com/races/tour-of-flanders-2023/map/
-  ; Link above shows where the key climbs are and where the key cobbles are
-  ; Below is just an example of setting cobbles
-  ask patches with [ pxcor <= 40 and pxcor > 20 and pycor > -20 and pycor < 20][
+  ask patches with [ pxcor <= 40 and pxcor > 15 and pycor > ymin and pycor < ymax][
     sprout 1 [
       set shape "cobbles"
       set color brown
@@ -71,16 +380,25 @@ to draw-roads
     set meaning "cobbles" ; can use this in if statements to set conditions of cobbles
   ]
 
-  ; Setup finish line
-  ask patches with [ pxcor <= max-pxcor and pxcor > 145 and pycor > -20 and pycor < 20] [
+  ask patches with [pycor > ymin + 1 and pycor < ymin + 2 and pxcor <= 145 or pycor > ymax - 2 and pycor < ymax - 1 and pxcor <= 145][
+     sprout 1 [
+      set shape "sideline"
+      stamp die
+    ]
+  ]
+
+  ask patches with [ pxcor <= max-pxcor and pxcor > max-pxcor - 2 and pycor > ymin and pycor < ymax] [
     sprout 1 [
       set shape "finish"
-      stamp die]
+      stamp die
+    ]
     set meaning "finish" ; can use this in if statements to set conditions of cobbles
   ]
 
 
-  ask patches with [ pycor > -7 and pycor < 7 and pxcor >= min-pxcor and pxcor <= min-pxcor + 3 ][
+  ; cyclists are within a 10 x 10 meter box at the start line, however, since scale is 0.001 they all start in same patch
+  ; If they started in differennt patches then they'd be around a kilometre apart
+  ask patches with [ pycor > -0.005 and pycor < 0.005 and pxcor >= min-pxcor and pxcor <= min-pxcor + 0.01 ][
     sprout 1 [
       set shape "line"
       set color white
@@ -92,7 +410,7 @@ end
 
 to draw-neighbourhood
   ; Draw grass
-  ask patches with [pycor <= -20 or pycor >= 20] [
+  ask patches with [pycor <= ymin or pycor >= ymax] [
       let g random 16 + 96
       let c (list 0 g 0)
       set pcolor c
@@ -101,7 +419,7 @@ to draw-neighbourhood
 
 
   ; Draw homes
-  ask n-of 50 patches with [ meaning = "grass"][
+  ask n-of 20 patches with [ meaning = "grass"][
      if count neighbors with [meaning = "grass"] = 8 and not any? turtles in-radius 2[
       sprout 1 [
         set shape one-of ["house" "house colonial" "house two story"]
@@ -127,12 +445,94 @@ to draw-neighbourhood
     set meaning "tree"
   ]
 end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Place Agents ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+to place-cyclists
+  create-cyclists 168 [
+    set size 1
+    set shape "circle"
+    set heading 90
+    set color magenta
+    set rider-mass 65
+    set bike-mass 7
+    set maxPower random-normal 7.1 0.4
+    set cooperation random-normal 0.48 0.2
+    set energy 716
+    set team -100000 ; so that they aren't included in calculations only do for teamwork > 0
+    set turtle-meaning "notTeam"
+    set isLead? false
+
+    set isBreak? false
+    set hasLead? false
+
+    set speed random-normal 10 0.5
+
+    set maxSpeed calcMaxSpeed
+    ;set maxSpeed
+    move-to one-of patches with [meaning = "start"]
+  ]
+
+  create-cyclists 6 [
+    set size 1
+    set shape "circle"
+    set heading 90
+    set color cyan
+
+    set rider-mass 65
+    set bike-mass 7
+    if teamAbility = "Good" [ set maxPower random-normal 8 0.4 ]
+    if teamAbility = "Average" [ set maxPower random-normal 7.1 0.4 ]
+    if teamAbility = "Bad" [ set maxPower random-normal 6 0.4 ]
+    set cooperation random-normal 0.48 0.2
+    set energy 716                        ; conversion (Cyclist has energy of 12 minues at full power, or 715s), we have converted this to a scale of 0 - 100 by multiplying Tlim by 8.3
+    set isBreak? false
+
+    set team teamWork
+    set turtle-meaning "team"
+    set isLead? false
+
+    set hasLead? false
+
+    set speed random-normal 10 0.5
+
+    set maxSpeed calcMaxSpeed
+
+    move-to one-of patches with [meaning = "start"]
+  ]
+
+  create-cyclists 1 [
+    set size 1
+    set shape "circle"
+    set heading 90
+    set color blue
+    set rider-mass leadWeight
+    set bike-mass 7
+    set maxPower leadPower
+    set cooperation leadCooperation
+    set energy leadEnergy
+    set turtle-meaning "teamLead"
+    set isLead? false
+
+    set hasLead? false
+
+    set isBreak? false
+
+    set speed random-normal 10 0.5
+
+    set maxSpeed calcMaxSpeed
+
+    move-to one-of patches with [meaning = "start"]
+  ]
+end
 @#$#@#$#@
 GRAPHICS-WINDOW
-6
+0
 10
-1519
-424
+1263
+224
 -1
 -1
 5.0
@@ -142,18 +542,182 @@ GRAPHICS-WINDOW
 1
 1
 0
+0
+0
 1
-0
+-125
+125
+-20
+20
 1
--150
-150
--40
-40
-0
-0
+1
 1
 ticks
 30.0
+
+BUTTON
+13
+335
+76
+368
+go
+go
+T
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+93
+337
+156
+370
+setup
+setup
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+SLIDER
+205
+390
+377
+423
+teamWork
+teamWork
+0
+1
+0.5
+0.1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+469
+385
+641
+418
+Vision
+Vision
+0
+5
+3.03
+0.01
+1
+m
+HORIZONTAL
+
+SLIDER
+470
+436
+642
+469
+sep
+sep
+0
+5
+3.0
+0.001
+1
+degrees
+HORIZONTAL
+
+SLIDER
+472
+482
+644
+515
+coh
+coh
+0
+3
+2.0
+0.001
+1
+degrees
+HORIZONTAL
+
+CHOOSER
+205
+436
+343
+481
+teamAbility
+teamAbility
+"Good" "Average" "Bad"
+0
+
+SLIDER
+8
+433
+180
+466
+leadWeight
+leadWeight
+60
+100
+63.0
+0.1
+1
+kg
+HORIZONTAL
+
+SLIDER
+10
+478
+182
+511
+leadPower
+leadPower
+6
+8.5
+7.0
+0.1
+1
+W/kg
+HORIZONTAL
+
+SLIDER
+11
+520
+183
+553
+leadCooperation
+leadCooperation
+0
+1
+0.5
+0.01
+1
+NIL
+HORIZONTAL
+
+SLIDER
+8
+389
+180
+422
+leadEnergy
+leadEnergy
+650
+800
+730.0
+1
+1
+seconds
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
@@ -259,6 +823,23 @@ false
 Circle -7500403 true true 0 0 300
 Circle -16777216 true false 30 30 240
 
+cobbles
+false
+0
+Polygon -7500403 true true 0 240 45 195 75 180 90 165 90 135 45 120 0 135
+Polygon -7500403 true true 300 240 285 210 270 180 270 150 300 135 300 225
+Polygon -7500403 true true 225 300 240 270 270 255 285 255 300 285 300 300
+Polygon -7500403 true true 0 285 30 300 0 300
+Polygon -7500403 true true 225 0 210 15 210 30 255 60 285 45 300 30 300 0
+Polygon -7500403 true true 0 30 30 0 0 0
+Polygon -7500403 true true 15 30 75 0 180 0 195 30 225 60 210 90 135 60 45 60
+Polygon -7500403 true true 0 105 30 105 75 120 105 105 90 75 45 75 0 60
+Polygon -7500403 true true 300 60 240 75 255 105 285 120 300 105
+Polygon -7500403 true true 120 75 120 105 105 135 105 165 165 150 240 150 255 135 240 105 210 105 180 90 150 75
+Polygon -7500403 true true 75 300 135 285 195 300
+Polygon -7500403 true true 30 285 75 285 120 270 150 270 150 210 90 195 60 210 15 255
+Polygon -7500403 true true 180 285 240 255 255 225 255 195 240 165 195 165 150 165 135 195 165 210 165 255
+
 cow
 false
 0
@@ -299,6 +880,15 @@ Circle -7500403 true true 8 8 285
 Circle -16777216 true false 60 75 60
 Circle -16777216 true false 180 75 60
 Polygon -16777216 true false 150 168 90 184 62 210 47 232 67 244 90 220 109 205 150 198 192 205 210 220 227 242 251 229 236 206 212 183
+
+finish
+false
+0
+Rectangle -1 false false -15 0 315 300
+Rectangle -16777216 true false 0 0 150 150
+Rectangle -16777216 true false 150 150 300 300
+Rectangle -1 true false 150 0 300 150
+Rectangle -1 true false 0 150 150 300
 
 fish
 false
@@ -342,6 +932,44 @@ Rectangle -16777216 true false 120 210 180 285
 Polygon -7500403 true true 15 120 150 15 285 120
 Line -16777216 false 30 120 270 120
 
+house colonial
+false
+0
+Rectangle -7500403 true true 270 75 285 255
+Rectangle -7500403 true true 45 135 270 255
+Rectangle -16777216 true false 124 195 187 256
+Rectangle -16777216 true false 60 195 105 240
+Rectangle -16777216 true false 60 150 105 180
+Rectangle -16777216 true false 210 150 255 180
+Line -16777216 false 270 135 270 255
+Polygon -7500403 true true 30 135 285 135 240 90 75 90
+Line -16777216 false 30 135 285 135
+Line -16777216 false 255 105 285 135
+Line -7500403 true 154 195 154 255
+Rectangle -16777216 true false 210 195 255 240
+Rectangle -16777216 true false 135 150 180 180
+
+house two story
+false
+0
+Polygon -7500403 true true 2 180 227 180 152 150 32 150
+Rectangle -7500403 true true 270 75 285 255
+Rectangle -7500403 true true 75 135 270 255
+Rectangle -16777216 true false 124 195 187 256
+Rectangle -16777216 true false 210 195 255 240
+Rectangle -16777216 true false 90 150 135 180
+Rectangle -16777216 true false 210 150 255 180
+Line -16777216 false 270 135 270 255
+Rectangle -7500403 true true 15 180 75 255
+Polygon -7500403 true true 60 135 285 135 240 90 105 90
+Line -16777216 false 75 135 75 180
+Rectangle -16777216 true false 30 195 93 240
+Line -16777216 false 60 135 285 135
+Line -16777216 false 255 105 285 135
+Line -16777216 false 0 180 75 180
+Line -7500403 true 60 195 60 240
+Line -7500403 true 154 195 154 255
+
 leaf
 false
 0
@@ -349,7 +977,7 @@ Polygon -7500403 true true 150 210 135 195 120 210 60 210 30 195 60 180 60 165 1
 Polygon -7500403 true true 135 195 135 240 120 255 105 255 105 285 135 285 165 240 165 195
 
 line
-true
+false
 0
 Line -7500403 true 150 0 150 300
 
@@ -400,6 +1028,11 @@ Polygon -1 true true 195 285 210 285 210 240 240 210 195 210
 Polygon -7500403 true false 276 85 285 105 302 99 294 83
 Polygon -7500403 true false 219 85 210 105 193 99 201 83
 
+sideline
+false
+0
+Rectangle -1184463 true false 0 75 300 240
+
 square
 false
 0
@@ -434,6 +1067,14 @@ Circle -7500403 true true 65 21 108
 Circle -7500403 true true 116 41 127
 Circle -7500403 true true 45 90 120
 Circle -7500403 true true 104 74 152
+
+tree pine
+false
+0
+Rectangle -6459832 true false 120 225 180 300
+Polygon -7500403 true true 150 240 240 270 150 135 60 270
+Polygon -7500403 true true 150 75 75 210 150 195 225 210
+Polygon -7500403 true true 150 7 90 157 150 142 210 157 150 7
 
 triangle
 false

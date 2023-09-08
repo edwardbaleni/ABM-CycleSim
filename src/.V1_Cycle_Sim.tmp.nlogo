@@ -86,14 +86,14 @@ to move
   repeat 8 [               ; Repeat this 5 times, this means that the lead will lead for 5 minutes
   ask cyclists [
     ;defectSpeed              ; If rider has lead for 5 minutes or rider is a defector, then they are given a slower speed to move to the back
-      fd speed / 16.67       ; Move foward km/min
+      fd speed * 0.06       ; Move foward km/min
       set energy energyEqns
       ;pack
       show energy
     ]
     display
   ]
-  ask cyclists [set dist dist + speed / 16.67 * 8]
+  ask cyclists [set dist dist + speed * 0.06 * 8]
 end
 
 to finish-cyclists
@@ -113,7 +113,7 @@ to lead
 
   ask cyclists [ set hasLead? false ]
 
-  ask cyclists with [any? mates and isLead? = true][
+  ask cyclists with [any? mates and isLead? = true or isBreak? = true][
     set hasLead? true
   ]
 
@@ -158,7 +158,7 @@ to updateSpeed
     ][
       if any? mates [
       set color orange
-      set speed [ 0.0001 * speed ] of leader
+      set speed [ 0.001 * speed ] of leader
       ]
     ]
   ]
@@ -216,9 +216,6 @@ to breakawayCoop
     ]
   ]
 end
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Breakaway ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Power Equations ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -302,11 +299,9 @@ to find-nearest-neighbor ;; turtle procedure
   set nearest-neighbor min-one-of mates[ distance myself ] ; finds the neighbour with the minimum distance from cyclist
 end
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Flocking ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
 to separate
   turn-away ([heading] of nearest-neighbor) sep  ; set angle that cyclicst can turn away from
-  ;ifelse random-float 1 < 0.9 [ turn-sep] [slow-down]       ; If I want my agents to either slow down or turn away
+  ; ifelse random-float 1 < 0.9 [ turn-sep] [slow-down]       ; If I want my agents to either slow down or turn away
 end
 
 to turn-sep
@@ -382,20 +377,10 @@ to draw-roads
       stamp die
   ]]
 
-  ; https://www.cyclingnews.com/races/tour-of-flanders-2023/map/
-  ; Link above shows where the key climbs are and where the key cobbles are
-  ; Below is just an example of setting cobbles
-  ask patches with [ pxcor <= 40 and pxcor > 15 and pycor > -15 and pycor < 15][
-    sprout 1 [
-      set shape "cobbles"
-      set color brown
-      stamp die
-    ]
-    set meaning "cobbles" ; can use this in if statements to set conditions of cobbles
-  ]
+
 
   ; Setup finish line
-  ask patches with [ pxcor <= max-pxcor and pxcor > 145 and pycor > -15 and pycor < 15] [
+  ask patches with [ pxcor <= max-pxcor and pxcor > max-pxcor - 2 and pycor > -15 and pycor < 15] [
     sprout 1 [
       set shape "finish"
       stamp die]
@@ -404,6 +389,7 @@ to draw-roads
 
 
   ask patches with [ pycor > -5 and pycor < 5 and pxcor >= min-pxcor and pxcor <= min-pxcor + 15 ][
+  ;ask patches with [ pycor > -0.01 and pycor < 0.01 and pxcor >= min-pxcor and pxcor <= min-pxcor + 0.01 ][
     sprout 1 [
       set shape "line"
       set color white
@@ -475,7 +461,7 @@ to place-cyclists
     set isBreak? false
     set hasLead? false
 
-    set speed random-normal 12 0.5
+    set speed random-normal 10 0.5
 
     set maxSpeed calcMaxSpeed
     ;set maxSpeed
@@ -504,7 +490,7 @@ to place-cyclists
 
     set hasLead? false
 
-    set speed random-normal 12 0.5
+    set speed random-normal 10 0.5
 
     set maxSpeed calcMaxSpeed
 
@@ -529,7 +515,7 @@ to place-cyclists
 
     set isBreak? false
 
-    set speed random-normal 12 0.5
+    set speed random-normal 10 0.5
 
     set maxSpeed calcMaxSpeed
 
@@ -540,11 +526,11 @@ end
 GRAPHICS-WINDOW
 0
 10
-3018
-829
+1263
+424
 -1
 -1
-10.0
+5.0
 1
 10
 1
@@ -554,8 +540,8 @@ GRAPHICS-WINDOW
 0
 0
 1
--150
-150
+-125
+125
 -40
 40
 1
@@ -607,7 +593,7 @@ leadPower
 leadPower
 6
 8.5
-7.3
+7.0
 0.1
 1
 W/kg
@@ -632,7 +618,7 @@ teamWork
 teamWork
 0
 1
-0.5
+0.3
 0.1
 1
 NIL
@@ -677,7 +663,7 @@ sep
 sep
 0
 10
-4.0
+2.5
 0.1
 1
 NIL
@@ -692,7 +678,7 @@ coh
 coh
 0
 10
-2.5
+3.1
 0.1
 1
 NIL
@@ -707,7 +693,7 @@ vision
 vision
 0
 5
-2.994
+3.057
 0.001
 1
 NIL
