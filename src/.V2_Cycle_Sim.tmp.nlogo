@@ -91,10 +91,10 @@ to move
       fd speed * 0.06       ; Move foward km/min
       set energy energyEqns
       ;pack
-      ;show energy
+      show energy
     ]
-    ;display
-  ;]
+    display
+  ]
   ask cyclists [set dist dist + speed * 0.06 * 8]
 end
 

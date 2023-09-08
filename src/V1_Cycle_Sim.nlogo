@@ -2,6 +2,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Define Environment ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+globals [ minutes ]
+
 breed [ cyclists cyclist ]
 
 cyclists-own[
@@ -12,7 +14,6 @@ cyclists-own[
   speed                         ; Current speed that agent is travelling
   maxPower                      ; Maximum power a cyclist can produce for 10 minutes
   cooperation                   ; Cooperation probability of the group, assigns each cyclist in a pack a probability of cooperation
-  ;breakawayCooperation          ; Assign a probability if cyclists will defect with leader
   isBreakawayCoop?              ; Decide if the cyclist will defect with leader
   isCoop?                       ; Allocate true or false if the cyclist is cooperative or not, respectively
   isLead?                       ; Allocate whether cyclist is in the front of the pack or not
@@ -31,6 +32,10 @@ cyclists-own[
 
   hasLead?                      ;
 
+  leadTime                      ; Variable used to determine whether to lead or not to lead
+  cooldown                      ; Variable used to determine if cyclist is cooling down
+  breakTime
+
   dist                          ; Calculate the distance travelled for each turtle (Do it in groups)
 
   isClimber?                    ; Indicate if the cyclist is a climber
@@ -46,16 +51,15 @@ patches-own[
 
 ; create environment
 to setup
-  clear-all    ;
+  clear-all
+  set minutes 5
   draw-roads
   draw-neighbourhood
-  ;draw-elevation
   place-cyclists
-  ;ask cyclists [
-    ;show maxSpeed
-    ;show maxPower
-    ;show dist
-  ;]
+
+  ask cyclists[
+    coop
+    breakawayCoop]
   reset-ticks
 end
 
@@ -66,34 +70,39 @@ to go
 
   pack                      ; Perfom flocking mechanism
 
-  ;crash                     ; Probability of crashing
+  ;crash                    ; Probability of crashing
 
   lead                      ; Find leader in group and move prvious lead to the back
 
-  coop                      ; Find probability that turtles are cooperative
+  ask cyclists [
+    if ticks mod 5 = 0 [
+      coop
+      breakawayCoop
+    ]
+  ]
 
-  breakawayCoop             ; Find probability that turtles will breakAway with Leader
+  ;coop                      ; Find probability that turtles are cooperative
+
+  ;breakawayCoop             ; Find probability that turtles will breakAway with Leader
 
   updateSpeed               ; Update speed of the group
 
-  finish-cyclists
   tick
 end
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Handle Agents ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Procedures ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Handle Agents ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to move
-  repeat 8 [               ; Repeat this 5 times, this means that the lead will lead for 5 minutes
   ask cyclists [
-    ;defectSpeed              ; If rider has lead for 5 minutes or rider is a defector, then they are given a slower speed to move to the back
-      fd speed * 0.06       ; Move foward km/min
-      set energy energyEqns
-      ;pack
-      show energy
-    ]
-    display
+    fd speed * 0.06
+    set energy energyEqns
   ]
-  ask cyclists [set dist dist + speed * 0.06 * 8]
+
+  finish-cyclists
 end
 
 to finish-cyclists
@@ -102,31 +111,45 @@ to finish-cyclists
   ]
 end
 
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Procedures ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Identify lead ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to lead
+  ask cyclists with [isLead? = true and leadTime > 0][
+    set leadTime leadTime - 1
+  ]
 
-  ask cyclists [ set hasLead? false ]
+   ask cyclists with [ hasLead? = true][
+    set cooldown cooldown - 1
+  ]
 
-  ask cyclists with [any? mates and isLead? = true or isBreak? = true][
+  ask cyclists with [ leadTime = 0 and hasLead? = false][
+    ; make cyclists that have lead to stop leading
     set hasLead? true
-  ]
-
-  ask cyclists [
     set isLead? false
+    set cooldown 5
   ]
 
-  ask cyclists with [ any? mates and xcor >= max [ xcor ] of mates ] [
+    ask cyclists with [ isCoop? = false and isLead? = true ][
+    ; ask uncooperative cyclists to set leadTime to 0
+    set leadTime 0
+  ]
+
+
+  ask cyclists with [ cooldown = 0 and hasLead? = true ][
+    ; begin cooldown timer
+    set leadTime 5
+    set hasLead? false
+  ]
+
+  ; check if they have already lead, find the next leader
+  ; if they have not already lead and no one nearby is a leader, they are leader
+  ask cyclists with [ any? mates and xcor > max [ xcor ] of mates] [
     ifelse hasLead? = true [
-      find-nearest-neighbor
-      ask nearest-neighbor [set isLead? true] ;of nearest-neighbor                            ; If been leader for 5 minutes already, set next rider as leader
+      next-leader
     ][
-      set isLead? true                                                  ; If have not been leader, set as leader
+      if not any? group with [isLead? = true][
+        set isLead? true
+      ]
     ]
   ]
 
@@ -146,19 +169,26 @@ to lead
 
 end
 
+to next-leader
+  if not any? mates with [ isLead? = true ][
+    find-nearest-neighbor
+    ask nearest-neighbor [ set isLead? true ]
+  ]
+end
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Update ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to updateSpeed
   ask cyclists [
     set leader min-one-of cyclists with [ isLead? = true ] [distance myself]
-    ask leader [ set speed 0.8 * mean [ maxSpeed ] of group]
+    ask leader [ set speed 0.8 * ( mean [ maxSpeed ] of group) ]
 
     ifelse hasLead? = false [
       set speed [ speed ] of leader
     ][
       if any? mates [
       set color orange
-      set speed [ 0.001 * speed ] of leader
+      set speed [ 0.3 * speed ] of leader
       ]
     ]
   ]
@@ -169,14 +199,18 @@ to updateSpeed
     breakaway
   ]
 
+  ask cyclists with [ isBreak? = true][
+    ifelse breakTime = 0 [
+      set isBreak? false
+      set hasLead? true
+      set breakTime 3
+    ][
+      set breakTime breakTime - 1
+    ]
+  ]
 
   ask cyclists with [isBreakawayCoop? = true and any? mates with [isBreak? = true]][
     join-Breakaway
-  ]
-
-  ask cyclists [
-    set isBreak? false
-    set isBreakawayCoop? true
   ]
 end
 
@@ -198,22 +232,18 @@ end
        ; if cooperation is less than 0.3 then the agent may or may not cooperate
        ; if cooperation is above 0.3 then the agent will cooperate
 to coop
-  ask cyclists[
-    ifelse random-float 1 < cooperation [
+  ifelse random-float 1 < cooperation [
       set isCoop? false
-    ][
+  ][
       set isCoop? true
-    ]
   ]
 end
 
 to breakawayCoop
-  ask cyclists[
-    ifelse random-float 1 <= 0.4 [
+  ifelse random-float 1 < 0.4 [
       set isBreakawayCoop? true
-    ][
+   ][
       set isBreakawayCoop? false
-    ]
   ]
 end
 
@@ -397,7 +427,7 @@ to draw-roads
   ]
 
 
-  ask patches with [ pycor > -5 and pycor < 5 and pxcor >= min-pxcor and pxcor <= min-pxcor + 15 ][
+  ask patches with [ pycor > -5 and pycor < 5 and pxcor >= min-pxcor and pxcor <= min-pxcor + 5 ][
   ;ask patches with [ pycor > -0.01 and pycor < 0.01 and pxcor >= min-pxcor and pxcor <= min-pxcor + 0.01 ][
     sprout 1 [
       set shape "line"
@@ -470,6 +500,10 @@ to place-cyclists
     set isBreak? false
     set hasLead? false
 
+    set cooldown 5
+    set leadTime 5
+    set breakTime 3
+
     set speed random-normal 10 0.5
 
     set maxSpeed calcMaxSpeed
@@ -499,6 +533,10 @@ to place-cyclists
 
     set hasLead? false
 
+    set cooldown 5
+    set leadTime 5
+    set breakTime 3
+
     set speed random-normal 10 0.5
 
     set maxSpeed calcMaxSpeed
@@ -522,6 +560,10 @@ to place-cyclists
 
     set hasLead? false
 
+    set cooldown 5
+    set leadTime 5
+    set breakTime 3
+
     set isBreak? false
 
     set speed random-normal 10 0.5
@@ -535,11 +577,11 @@ end
 GRAPHICS-WINDOW
 0
 10
-1263
-424
+3773
+1234
 -1
 -1
-5.0
+15.0
 1
 10
 1
@@ -557,7 +599,7 @@ GRAPHICS-WINDOW
 1
 1
 ticks
-100.0
+1.0
 
 BUTTON
 7
@@ -642,7 +684,7 @@ leadWeight
 leadWeight
 60
 100
-100.0
+77.0
 1
 1
 NIL
@@ -657,7 +699,7 @@ leadCooperation
 leadCooperation
 0
 1
-0.5
+0.3
 0.1
 1
 NIL
@@ -672,7 +714,7 @@ sep
 sep
 0
 10
-2.5
+2.0
 0.1
 1
 NIL
@@ -687,7 +729,7 @@ coh
 coh
 0
 10
-3.1
+3.8
 0.1
 1
 NIL
@@ -702,7 +744,7 @@ vision
 vision
 0
 5
-3.057
+3.0
 0.001
 1
 NIL
