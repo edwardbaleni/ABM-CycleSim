@@ -2,8 +2,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Define Environment ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-globals [ minutes ]
-
 breed [ cyclists cyclist ]
 
 cyclists-own[
@@ -52,7 +50,7 @@ patches-own[
 ; create environment
 to setup
   clear-all
-  set minutes 5
+
   draw-roads
   draw-neighbourhood
   place-cyclists
@@ -114,42 +112,23 @@ end
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Identify lead ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to lead
-  ask cyclists with [isLead? = true and leadTime > 0][
-    set leadTime leadTime - 1
-  ]
 
-   ask cyclists with [ hasLead? = true][
-    set cooldown cooldown - 1
-  ]
+  ask cyclists [ set hasLead? false ]
 
-  ask cyclists with [ leadTime = 0 and hasLead? = false][
-    ; make cyclists that have lead to stop leading
+  ask cyclists with [any? mates and isLead? = true or isBreak? = true][
     set hasLead? true
+  ]
+
+  ask cyclists [
     set isLead? false
-    set cooldown 5
   ]
 
-    ask cyclists with [ isCoop? = false and isLead? = true ][
-    ; ask uncooperative cyclists to set leadTime to 0
-    set leadTime 0
-  ]
-
-
-  ask cyclists with [ cooldown = 0 and hasLead? = true ][
-    ; begin cooldown timer
-    set leadTime 5
-    set hasLead? false
-  ]
-
-  ; check if they have already lead, find the next leader
-  ; if they have not already lead and no one nearby is a leader, they are leader
-  ask cyclists with [ any? mates and xcor > max [ xcor ] of mates] [
+  ask cyclists with [ any? mates and xcor >= max [ xcor ] of mates ] [
     ifelse hasLead? = true [
-      next-leader
+      find-nearest-neighbor
+      ask nearest-neighbor [set isLead? true] ;of nearest-neighbor                            ; If been leader for 5 minutes already, set next rider as leader
     ][
-      if not any? group with [isLead? = true][
-        set isLead? true
-      ]
+      set isLead? true                                                  ; If have not been leader, set as leader
     ]
   ]
 
@@ -169,26 +148,21 @@ to lead
 
 end
 
-to next-leader
-  if not any? mates with [ isLead? = true ][
-    find-nearest-neighbor
-    ask nearest-neighbor [ set isLead? true ]
-  ]
-end
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Update ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to updateSpeed
   ask cyclists [
     set leader min-one-of cyclists with [ isLead? = true ] [distance myself]
-    ask leader [ set speed 0.8 * ( mean [ maxSpeed ] of group) ]
+    ask leader [ set speed 0.8 * mean [ maxSpeed ] of group]
 
     ifelse hasLead? = false [
       set speed [ speed ] of leader
     ][
       if any? mates [
       set color orange
-      set speed [ 0.3 * speed ] of leader
+      set speed [ 0.7 * speed ] of leader
       ]
     ]
   ]
@@ -199,18 +173,14 @@ to updateSpeed
     breakaway
   ]
 
-  ask cyclists with [ isBreak? = true][
-    ifelse breakTime = 0 [
-      set isBreak? false
-      set hasLead? true
-      set breakTime 3
-    ][
-      set breakTime breakTime - 1
-    ]
-  ]
 
   ask cyclists with [isBreakawayCoop? = true and any? mates with [isBreak? = true]][
     join-Breakaway
+  ]
+
+  ask cyclists [
+    set isBreak? false
+    set isBreakawayCoop? true
   ]
 end
 
@@ -232,18 +202,22 @@ end
        ; if cooperation is less than 0.3 then the agent may or may not cooperate
        ; if cooperation is above 0.3 then the agent will cooperate
 to coop
-  ifelse random-float 1 < cooperation [
+  ask cyclists[
+    ifelse random-float 1 < cooperation [
       set isCoop? false
-  ][
+    ][
       set isCoop? true
+    ]
   ]
 end
 
 to breakawayCoop
-  ifelse random-float 1 < 0.4 [
+  ask cyclists[
+    ifelse random-float 1 <= 0.4 [
       set isBreakawayCoop? true
-   ][
+    ][
       set isBreakawayCoop? false
+    ]
   ]
 end
 
@@ -577,11 +551,11 @@ end
 GRAPHICS-WINDOW
 0
 10
-3773
-1234
+1263
+424
 -1
 -1
-15.0
+5.0
 1
 10
 1

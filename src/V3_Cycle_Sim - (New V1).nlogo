@@ -2,8 +2,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Define Environment ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-globals [ minutes ]
-
 breed [ cyclists cyclist ]
 
 cyclists-own[
@@ -52,7 +50,6 @@ patches-own[
 ; create environment
 to setup
   clear-all
-  set minutes 5
   draw-roads
   draw-neighbourhood
   place-cyclists
@@ -80,10 +77,6 @@ to go
       breakawayCoop
     ]
   ]
-
-  ;coop                      ; Find probability that turtles are cooperative
-
-  ;breakawayCoop             ; Find probability that turtles will breakAway with Leader
 
   updateSpeed               ; Update speed of the group
 
@@ -114,36 +107,61 @@ end
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Identify lead ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to lead
-  ask cyclists with [isLead? = true and leadTime > 0][
-    set leadTime leadTime - 1
+
+  decrement-lead-time
+
+  decrement-cooldown-time
+
+  defect
+
+  find-leader
+
+  ask cyclists with [ turtle-meaning != "teamLead" and isLead? = true][
+    set color yellow
   ]
 
-   ask cyclists with [ hasLead? = true][
-    set cooldown cooldown - 1
+   ask cyclists with [ isLead? = false and isBreak? = false ][
+    if turtle-meaning = "notTeam" [ set color magenta ]
+    if turtle-meaning = "team" [ set color cyan ]
+    if turtle-meaning = "teamLead" [ set color blue ]
   ]
 
-  ask cyclists with [ leadTime = 0 and hasLead? = false][
-    ; make cyclists that have lead to stop leading
-    set hasLead? true
-    set isLead? false
-    set cooldown 5
-  ]
+end
 
-    ask cyclists with [ isCoop? = false and isLead? = true ][
+to decrement-lead-time
+  ask cyclists with [isLead? = true][
+    ifelse leadTime = 0 [
+      set leadTime 5
+      set isLead? false
+      set hasLead? true
+    ][
+      set leadTime leadTime - 1
+    ]
+  ]
+end
+
+to decrement-cooldown-time
+  ask cyclists with [ hasLead? = true][
+    ifelse cooldown = 0 [
+      set cooldown 5
+      set hasLead? false
+    ][
+      set cooldown cooldown - 1
+    ]
+  ]
+end
+
+to defect
+  ask cyclists with [ isCoop? = false and isLead? = true ][
     ; ask uncooperative cyclists to set leadTime to 0
     set leadTime 0
   ]
+end
 
-
-  ask cyclists with [ cooldown = 0 and hasLead? = true ][
-    ; begin cooldown timer
-    set leadTime 5
-    set hasLead? false
-  ]
-
+to find-leader
   ; check if they have already lead, find the next leader
   ; if they have not already lead and no one nearby is a leader, they are leader
-  ask cyclists with [ any? mates and xcor > max [ xcor ] of mates] [
+  ask cyclists with [ any? mates and xcor >= max [ xcor ] of group] [
     ifelse hasLead? = true [
       next-leader
     ][
@@ -152,21 +170,6 @@ to lead
       ]
     ]
   ]
-
-  ask cyclists with [ not any? mates ][
-    set isLead? true
-  ]
-
-  ask cyclists with [ turtle-meaning != "teamLead" and isLead? = true][
-    set color yellow
-  ]
-
-   ask cyclists with [ isLead? = false ][
-    if turtle-meaning = "notTeam" [ set color magenta ]
-    if turtle-meaning = "team" [ set color cyan ]
-    if turtle-meaning = "teamLead" [ set color blue ]
-  ]
-
 end
 
 to next-leader
@@ -176,23 +179,33 @@ to next-leader
   ]
 end
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Update ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; UpdateSpeed ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to updateSpeed
-  ask cyclists [
-    set leader min-one-of cyclists with [ isLead? = true ] [distance myself]
-    ask leader [ set speed 0.8 * ( mean [ maxSpeed ] of group) ]
 
-    ifelse hasLead? = false [
+  set-group-speed
+
+  find-breakaway-chance
+  ; Catch-up (If energy allows)
+
+end
+
+to set-group-speed
+  ask cyclists [
+    if any? group with [ isLead? = true ][
+      set leader min-one-of group with [ isLead? = true ] [distance myself]
+      ask leader [ set speed 0.8 * ( mean [ maxSpeed ] of group) ]
       set speed [ speed ] of leader
-    ][
-      if any? mates [
-      set color orange
-      set speed [ 0.1 * speed ] of leader
+
+      if hasLead? = true [
+        set color orange
+        set speed 0.7 * ([ speed ] of leader)
       ]
     ]
   ]
+end
 
+to find-breakaway-chance
   ask cyclists with [ isLead? = true and isCoop? = false and maxSpeed * 0.8 > speed ] [
     set isBreak? true
     set isLead? false
@@ -209,10 +222,14 @@ to updateSpeed
     ]
   ]
 
+
   ask cyclists with [isBreakawayCoop? = true and any? mates with [isBreak? = true]][
     join-Breakaway
   ]
 end
+
+
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Breakaway ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -644,7 +661,7 @@ leadPower
 leadPower
 6
 8.5
-7.0
+8.0
 0.1
 1
 W/kg
@@ -729,7 +746,7 @@ coh
 coh
 0
 10
-3.8
+3.0
 0.1
 1
 NIL
