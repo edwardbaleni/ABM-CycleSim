@@ -148,7 +148,7 @@ to block
         set speed maxSpeed * 0.3
         ask mates with [ blockStatus? = false and meaning != "teamLead"] [set speed speed]
         ask mates with [ meaning = "teamLead" ][set speed 0.75 * maxSpeed]
-        print ( word "Teammate " cyclists-here " is blocking!" )
+        print ( word "Teammate  is blocking!" )
       ][
         print "A teammate is not in a favourable position to block!"
         set speed maxSpeed * 0.9
