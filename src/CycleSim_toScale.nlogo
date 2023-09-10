@@ -1,9 +1,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Define Environment ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-globals [ countdown ]
-
+globals[ xmin xmax ymin ymax ]
 breed [ cyclists cyclist ]
 
 cyclists-own[
@@ -42,17 +40,8 @@ cyclists-own[
   separation-group
   next-neighbor
 
-  team                          ; for team work of our actual team (teamwork)
-
-  attackStatus?
-  blockStatus?
-  bridgeStatus?
-  teamAttackStatus?
-
-  teamLead?
-
-
-  slowdown?
+  exhausted
+  extremeExhausted
   ]
 
 patches-own[
@@ -61,6 +50,8 @@ patches-own[
 
 to setup
   clear-all
+  set ymin -15
+  set ymax 15
   draw-roads
   draw-neighbourhood
   place-cyclists
@@ -72,6 +63,7 @@ to setup
   reset-ticks
 end
 
+
 to go
   if not any? turtles [stop]
 
@@ -82,187 +74,24 @@ to go
   lead                      ; Find leader in group and move prvious lead to the back
 
   ask cyclists [
-    ; don't want to change coop mid breakaway
-    if ticks mod 5 = 0 and isBreak? = false [
-      coop
-      breakawayCoop
+    if ticks mod 5 = 0 [
+      coop                  ; Find probability that turtles are cooperative
+      breakawayCoop         ; Find probability that turtles will breakAway with Leader
     ]
   ]
 
   updateSpeed               ; Update speed of the group
 
-  attackA
-
-  attackT
-
-  block
-
-  catch-group
-
   tick
 end
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Managerial Work ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-to attackAlone
-  ask cyclists with [ turtle-meaning = "teamLead"] [
-    if countdown = 0 [
-      set countdown 30
-      set attackStatus? true
-      print "Your lead cyclist is attacking alone, watch their energy levels!"
-    ]
-  ]
-end
-
-to attackA
-  ask cyclists with [ attackStatus? = true ]
-  [
-    ifelse countdown > 0 [
-      set speed 0.9 * maxSpeed
-      decrement-countdown
-    ][
-      set attackStatus? false
-      print "Your lead cyclist is no longer attacking!"
-    ]
-  ]
-end
-
-to teamBlock
-  ask cyclists with [turtle-meaning = "team"][
-    if countdown = 0 [
-      set countdown 30
-      set blockStatus? true
-    ]
-  ]
-end
-
-to block
-  ask cyclists with [blockStatus? = true][
-    ifelse countdown > 0 [
-      ifelse not any? other turtles in-cone 10 165  [
-        ask mates with [ blockStatus? = false ] [set isLead? false]
-        set isLead? true
-        set leadTime 5
-        set speed maxSpeed * 0.3
-        ask mates with [ blockStatus? = false and meaning != "teamLead"] [set speed speed]
-        ask mates with [ meaning = "teamLead" ][set speed 0.75 * maxSpeed]
-        print ( word "Teammate " cyclists-here " is blocking!" )
-      ][
-        print "A teammate is not in a favourable position to block!"
-        set speed maxSpeed * 0.9
-      ]
-      set countdown countdown - 1 / 6 ;decrement-countdown
-    ][
-      set blockStatus? false
-      print "A teammate is no longer blocking!"
-      set countdown 0
-    ]
-  ]
-end
-
-
-to teamAttack
-  ask cyclists with [ turtle-meaning = "team" or turtle-meaning = "teamLead"][
-    if countdown = 0 [
-      set teamAttackStatus? true
-    ]
-  ]
-
-  if countdown = 0 [ set countdown 30]
-end
-
-to attackT
-  ask cyclists with [ teamAttackStatus? = true][
-    ifelse countdown > 0 [
-      ifelse any? mates with [ teamAttackStatus? = false] or any? other cyclists in-cone 20 180 with [ teamAttackStatus? = false ][
-        ; First need to leave the pack
-        set speed 0.9 * maxSpeed
-        print "A teammate has attacked the peloton"
-      ][
-        ; Now regrup and create formation
-       if any? cohesion-group and not any? separation-group [
-          set bridgeStatus? true
-       ]
-      ]
-      set countdown countdown - ( 1 / 20 )
-    ][
-      set teamAttackStatus? false
-      print "Your team has finished their attack"
-    ]
-  ]
-
-  if countdown < 0 [ set countdown 0]
-end
-
-to bridge
-  ask cyclists with [ turtle-meaning = "team" or turtle-meaning = "teamLead"][
-    if countdown = 0 [
-      if any? cohesion-group and not any? separation-group [
-        set countdown -1 ; -1 is just infinite, but this will continue until group is found
-        set bridgeStatus? true
-      ]
-    ]
-  ]
-
-end
-
-; resets the timer
-to catch-group
-  ask cyclists with [ bridgeStatus? = true and teamAttackStatus? = false ][
-    ifelse any? separation-group [
-      set speed [speed] of min-one-of separation-group [distance myself] + 1
-      set bridgestatus? false
-      set countdown 0
-      print ( word "A teammate has bridged the gap!" )
-    ][
-      breakaway
-      print ( word "A teammate is bridging!" )
-      if any? mates [
-        ask mates [ join-breakaway ]
-      ]
-    ]
-  ]
-end
-
-; This one does not reset the timer
-to catch-group2
-  ask cyclists with [ bridgeStatus? = true and teamAttackStatus? = true][
-    ifelse any? separation-group [
-      set speed [speed] of min-one-of separation-group [distance myself] + 1
-      set bridgestatus? false
-      print "A teammate has bridged the gap! And joined the attack group"
-    ][
-      breakaway
-      print "A teammate is trying to bridge and join the attack group!"
-      if any? mates [
-        ask mates [ join-breakaway ]
-      ]
-    ]
-  ]
-end
-
-
-to setup-countdown
-  set countdown 0
-end
-
-to decrement-countdown
-  set countdown countdown - 1
-end
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Procedures ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Handle Agents ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Handle Agents ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to move
-  ask cyclists [
+    ask cyclists [
     fd speed * 0.06
-    set energy energyEqns
+    energy-calc
+    show energy
   ]
 
   finish-cyclists
@@ -275,6 +104,11 @@ to finish-cyclists
     ask cyclists-here [stamp die]
   ]
 end
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Procedures ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Identify lead ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -334,7 +168,7 @@ end
 to find-leader
   ; check if they have already lead, find the next leader
   ; if they have not already lead and no one nearby is a leader, they are leader
-  ask cyclists with [ any? mates and not any? other turtles in-cone 5 165 ] [
+  ask cyclists with [ any? mates and not any? other turtles in-cone 0.01 165 ] [
     ifelse hasLead? = true [
       next-leader
     ][
@@ -372,13 +206,9 @@ to set-group-speed
 
       if hasLead? = true [
         set color orange
-        set speed ([ speed ] of leader) - 3
+        set speed 0.6 * ([ speed ] of leader)
       ]
     ]
-  ]
-
-  ask cyclists with [not any? mates] [
-    set speed 0.75 * maxSpeed
   ]
 end
 
@@ -404,8 +234,13 @@ to find-breakaway-chance
     join-Breakaway
   ]
 
-  ;ask cyclists with [slowdown? = true and any? mates]
-  ;[set speed 0.97 * speed]
+    ask cyclists with [exhausted = true][
+    set speed maxSpeed * 0.4
+  ]
+
+  ask cyclists with [ extremeExhausted = true ][
+    set speed maxSpeed * 0.2
+  ]
 end
 
 
@@ -419,7 +254,7 @@ to breakaway
 end
 
 to join-Breakaway
-  set breakLead min-one-of mates with [ isBreak? = true or bridgeStatus? = true ] [ distance myself]
+  set breakLead min-one-of mates with [ isBreak? = true ] [ distance myself]
   set speed [speed] of breakLead
   set color 37
 end
@@ -445,8 +280,6 @@ to breakawayCoop
 end
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Power Equations ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-
 to-report calcMaxSpeed
   ; Newton-Raphson method to calculate cubic roots
   let hold 0
@@ -484,7 +317,7 @@ to-report powerEqns [ d_w v ]
   ;P_tot    = P_roll + P_air
   let P_tot (P_roll + P_air)
 
-  report ( P_tot / maxPower )
+  report ( P_tot )
 end
 
 to-report energyEqns
@@ -497,13 +330,54 @@ to-report energyEqns
   ][
     set d 100
   ]
-  set vel speed / 3.6
-  ;show d
- report (energy - ( e ^ ( -6.35 * ln (powerEqns d vel) + 2.478 ) ) * 60)
+  set vel speed * 0.06
+
+ report (energy - ( e ^ ( -6.35 * ln ( (powerEqns d vel) / maxPower ) + 2.478 ) ) * 60)
 end
 
+to energy-calc
+  let d 10
+  let close other turtles in-cone 160 3
+  let closest min-one-of close [distance myself]
+  ifelse any? other cyclists in-cone 160 3 [
+    set d distance closest
+  ][
+    set d 100
+  ]
+
+  ; set to metres from kilometres
+  set d d * 1000
+  ; keep velocity at m/s
+  let vel speed
+
+  ; has to be in seconds not minutes
+  let energy-used 0
+  set energy-used ( powerEqns d vel ) * 60
+
+  ;show energy-used
+
+  ; energy expenditure
+  set energy energy - energy-used / 1000
+  set energy energy + 200 * 60 / 1000 ;recovery / 1000
+
+  show energy
+
+  if energy > 1000[set energy 1000] ;caps storage of energy at 1000kJ
+
+  ifelse energy < 100 [   ;defines a cyclist as exhausted
+    set exhausted true
+  ][
+    set exhausted false
+  ]
+
+  if energy <= 0  ;cyclist completely spent - he moves to the leftmost coordinate and becomes much slower
+    [
+      set extremeExhausted true
+      set energy 0
+    ]
 
 
+end
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Flocking ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 to pack
@@ -513,7 +387,7 @@ to pack
   find-alg-group
   ifelse any? cohesion-group [
       find-nearest-neighbor
-      ifelse distance next-neighbor < 1
+      ifelse distance next-neighbor < 0.0001
         [ separate ]
         [ align
           cohere ] ] [ set heading 90]
@@ -521,15 +395,15 @@ to pack
 end
 
 to find-alg-group
-  set cohesion-group other turtles in-cone 20 140
-  set separation-group other turtles in-cone 3 140
+  set cohesion-group other turtles in-cone 0.01 140
+  set separation-group other turtles in-cone 0.001 140
 end
 
 to find-group
-  set group turtles in-radius vision
+  set group turtles in-radius ( vision * 0.02 )
 end
 to find-mates
-  set mates other turtles in-radius vision ; set radius to find teammates
+  set mates other turtles in-radius ( vision * 0.02 ) ; set radius to find teammates
 end
 
 to find-nearest-neighbor ;; turtle procedure
@@ -539,22 +413,22 @@ end
 
 to separate
   turn-away ([heading] of next-neighbor) sep  ; set angle that cyclicst can turn away from
-  ;ifelse random-float 1 < 0.9 [ turn-sep] [slow-down]       ; If I want my agents to either slow down or turn away
+  ; ifelse random-float 1 < 0.9 [ turn-sep] [slow-down]       ; If I want my agents to either slow down or turn away
 end
 
+
 to turn-sep
-  set slowdown? false
-  turn-away ([heading] of next-neighbor) sep
+  turn-away ([heading] of nearest-neighbor) sep
 end
 
 to slow-down
-  set slowdown? true
+  set speed 0.97 * speed
 end
 
 ;;;;;;;;;;;;;;;;;;;;; ALIGN
 
 to align  ;; turtle procedure
-  set heading 90
+  ;set heading 90
   ;turn-towards average-matesheading 1  ; set angle that cyclist turns toward teamate
   ; This just makes sure that if a turtle drifts too far away, that it will come back into the race
   ;let closest-distance distance nearest-neighbor
@@ -568,6 +442,7 @@ to-report average-matesheading  ;; turtle procedure
     [ report heading ]
     [ report atan x-component y-component ]
 end
+
 
 to cohere  ;; turtle procedure
   turn-towards average-heading-towards-mates coh
@@ -599,22 +474,16 @@ to turn-at-most [turn max-turn]  ;; turtle procedure
     [ rt turn ]
 end
 
-
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Setup Environment ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to draw-roads
-    ; "ask patches with", this will ask patches with certain characteristics to do something
-  ask patches with [ pycor > -15 and pycor < 15] [
+  ask patches with [ pycor > ymin and pycor < ymax] [
       set pcolor grey
     ]
 
-  ; https://www.cyclingnews.com/races/tour-of-flanders-2023/map/
-  ; Link above shows where the key climbs are and where the key cobbles are
-  ; Below is just an example of setting cobbles
-  ask patches with [ pxcor <= 40 and pxcor > 15 and pycor > -15 and pycor < 15][
+  ask patches with [ pxcor <= 40 and pxcor > 15 and pycor > ymin and pycor < ymax][
     sprout 1 [
       set shape "cobbles"
       set color brown
@@ -622,24 +491,26 @@ to draw-roads
     ]
     set meaning "cobbles" ; can use this in if statements to set conditions of cobbles
   ]
-   ; set up yellow lines on side walk
-  ask patches with [pycor > -14 and pycor < -12 and pxcor <= 145 or pycor > 12 and pycor < 14 and pxcor <= 145][
+
+  ask patches with [pycor > ymin + 1 and pycor < ymin + 2 and pxcor <= 145 or pycor > ymax - 2 and pycor < ymax - 1 and pxcor <= 145][
      sprout 1 [
       set shape "sideline"
       stamp die
-  ]]
+    ]
+  ]
 
-  ; Setup finish line
-  ask patches with [ pxcor <= max-pxcor and pxcor > max-pxcor - 2 and pycor > -15 and pycor < 15] [
+  ask patches with [ pxcor <= max-pxcor and pxcor > max-pxcor - 2 and pycor > ymin and pycor < ymax] [
     sprout 1 [
       set shape "finish"
-      stamp die]
+      stamp die
+    ]
     set meaning "finish" ; can use this in if statements to set conditions of cobbles
   ]
 
 
-  ask patches with [ pycor > -5 and pycor < 5 and pxcor >= min-pxcor and pxcor <= min-pxcor + 5 ][
-  ;ask patches with [ pycor > -0.01 and pycor < 0.01 and pxcor >= min-pxcor and pxcor <= min-pxcor + 0.01 ][
+  ; cyclists are within a 10 x 10 meter box at the start line, however, since scale is 0.001 they all start in same patch
+  ; If they started in differennt patches then they'd be around a kilometre apart
+  ask patches with [ pycor > -0.005 and pycor < 0.005 and pxcor >= min-pxcor and pxcor <= min-pxcor + 0.01 ][
     sprout 1 [
       set shape "line"
       set color white
@@ -651,7 +522,7 @@ end
 
 to draw-neighbourhood
   ; Draw grass
-  ask patches with [pycor <= -15 or pycor >= 15] [
+  ask patches with [pycor <= ymin or pycor >= ymax] [
       let g random 16 + 96
       let c (list 0 g 0)
       set pcolor c
@@ -660,7 +531,7 @@ to draw-neighbourhood
 
 
   ; Draw homes
-  ask n-of 50 patches with [ meaning = "grass"][
+  ask n-of 20 patches with [ meaning = "grass"][
      if count neighbors with [meaning = "grass"] = 8 and not any? turtles in-radius 2[
       sprout 1 [
         set shape one-of ["house" "house colonial" "house two story"]
@@ -693,38 +564,34 @@ end
 
 to place-cyclists
   create-cyclists 168 [
-    set size 1.5
+    set size 1
+    set shape "circle"
     set heading 90
     set color magenta
     set rider-mass 65
     set bike-mass 7
     set maxPower random-normal 7.1 0.4
-    set cooperation random-normal 0.48 0.2
+    set cooperation random-normal 0.3 0.3;0.48 0.2
     set energy 716
-;    set breakawayCooperation random-normal 0.3 0.1 ; selection of 0.3 and 0.1 is quite random at the moment
-    set team -100000 ; so that they aren't included in calculations only do for teamwork > 0
     set turtle-meaning "notTeam"
     set isLead? false
 
     set isBreak? false
     set hasLead? false
 
-    set cooldown 5
-    set leadTime 5
-    set breakTime 3
-
     set speed random-normal 10 0.5
 
     set maxSpeed calcMaxSpeed
-    ;set maxSpeed
 
-    set teamAttackStatus? false
-    set blockStatus? false
+    set  exhausted false
+    set  extremeExhausted false
+
     move-to one-of patches with [meaning = "start"]
   ]
 
   create-cyclists 6 [
-    set size 1.5
+    set size 1
+    set shape "circle"
     set heading 90
     set color cyan
 
@@ -733,7 +600,7 @@ to place-cyclists
     if teamAbility = "Good" [ set maxPower random-normal 8 0.4 ]
     if teamAbility = "Average" [ set maxPower random-normal 7.1 0.4 ]
     if teamAbility = "Bad" [ set maxPower random-normal 6 0.4 ]
-    set cooperation random-normal 0.48 0.2
+    set cooperation random-normal 0.3 0.3;0.48 0.2
     set energy 716                        ; conversion (Cyclist has energy of 12 minues at full power, or 715s), we have converted this to a scale of 0 - 100 by multiplying Tlim by 8.3
     set isBreak? false
 
@@ -742,22 +609,19 @@ to place-cyclists
 
     set hasLead? false
 
-    set cooldown 5
-    set leadTime 5
-    set breakTime 3
-
     set speed random-normal 10 0.5
 
     set maxSpeed calcMaxSpeed
 
-    set blockStatus? false
-    set teamAttackStatus? false
+      set  exhausted false
+  set  extremeExhausted false
 
     move-to one-of patches with [meaning = "start"]
   ]
 
   create-cyclists 1 [
-    set size 1.5
+    set size 1
+    set shape "circle"
     set heading 90
     set color blue
     set rider-mass leadWeight
@@ -770,18 +634,14 @@ to place-cyclists
 
     set hasLead? false
 
-    set cooldown 5
-    set leadTime 5
-    set breakTime 3
-
     set isBreak? false
 
     set speed random-normal 10 0.5
 
     set maxSpeed calcMaxSpeed
 
-    set blockStatus? false
-    set teamAttackStatus? false
+  set  exhausted false
+  set  extremeExhausted false
 
     move-to one-of patches with [meaning = "start"]
   ]
@@ -791,7 +651,7 @@ GRAPHICS-WINDOW
 0
 10
 1263
-424
+224
 -1
 -1
 5.0
@@ -806,19 +666,19 @@ GRAPHICS-WINDOW
 1
 -125
 125
--40
-40
+-20
+20
 1
 1
 1
 ticks
-1.0
+30.0
 
 BUTTON
-7
-437
-70
-470
+13
+335
+76
+368
 go
 go
 T
@@ -832,10 +692,10 @@ NIL
 1
 
 BUTTON
-7
-479
-70
-512
+93
+337
+156
+370
 setup
 setup
 NIL
@@ -849,207 +709,177 @@ NIL
 1
 
 SLIDER
-12
-585
-184
-618
-leadPower
-leadPower
-6
-8.5
-8.5
+205
+390
+377
+423
+teamWork
+teamWork
+0
+1
+0.5
 0.1
 1
-W/kg
+NIL
+HORIZONTAL
+
+SLIDER
+469
+385
+641
+418
+Vision
+Vision
+0
+5
+5.0
+0.01
+1
+m
+HORIZONTAL
+
+SLIDER
+470
+436
+642
+469
+sep
+sep
+0
+5
+1.561
+0.001
+1
+degrees
+HORIZONTAL
+
+SLIDER
+472
+482
+644
+515
+coh
+coh
+0
+3
+0.994
+0.001
+1
+degrees
 HORIZONTAL
 
 CHOOSER
-89
-466
-227
-511
+205
+436
+343
+481
 teamAbility
 teamAbility
 "Good" "Average" "Bad"
 0
 
 SLIDER
-11
-538
-183
-571
+8
+433
+180
+466
 leadWeight
 leadWeight
 60
 100
-91.0
+63.0
+0.1
 1
-1
-NIL
+kg
 HORIZONTAL
 
 SLIDER
-206
-535
-378
-568
+10
+478
+182
+511
+leadPower
+leadPower
+6
+8.5
+7.0
+0.1
+1
+W/kg
+HORIZONTAL
+
+SLIDER
+11
+520
+183
+553
 leadCooperation
 leadCooperation
 0
 1
-0.3
-0.1
+0.76
+0.01
 1
 NIL
 HORIZONTAL
 
 SLIDER
-844
-508
-1016
-541
-sep
-sep
-0
-10
-3.0
-0.1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-844
-549
-1016
-582
-coh
-coh
-0
-10
-4.0
-0.1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-844
-463
-1016
-496
-vision
-vision
-0
-5
-4.013
-0.001
-1
-NIL
-HORIZONTAL
-
-SLIDER
-206
-585
-378
-618
+8
+389
+180
+422
 leadEnergy
 leadEnergy
 650
-750
-716.0
+800
+730.0
 1
 1
-Sec
+seconds
 HORIZONTAL
 
-BUTTON
-483
-449
-587
-482
-Attack Alone
-attackAlone
-NIL
-1
-T
-OBSERVER
-NIL
-Z
-NIL
-NIL
-1
-
-BUTTON
-606
-489
-710
-522
-Team Attack
-teamAttack
-NIL
-1
-T
-OBSERVER
-NIL
-A
-NIL
-NIL
-0
-
-BUTTON
-606
-448
-703
-481
-Team Block
-teamBlock
-NIL
-1
-T
-OBSERVER
-NIL
-B
-NIL
-NIL
-1
-
-BUTTON
-605
-534
-672
-567
-Bridge
-bridge
-NIL
-1
-T
-OBSERVER
-NIL
-S
-NIL
-NIL
-1
-
-MONITOR
-488
-567
-565
-612
-Countdown
-countdown
-1
-1
-11
-
 @#$#@#$#@
+# Cycle Simulation
+
 ## WHAT IS IT?
 
-(a general understanding of what the model is trying to show or explain)
+Road cycling is a popular sport where a group of riders start together, often as a rolling start - a race that begins while cyclists are already in motion, in contrast to a standing start where they commence from a standstill. The cyclists race one another to the finish line to win the race. Cyclists participate in many prestigious events known as classics throughout the year, with some of the most renowned being: The Grand Tours (i.e. Tour de France, Giro d'Italia, Vuelta a Espana), The Monument Classics (i.e. Milan-Sanremo, Tour of Flanders, Paris-Roubaix, Liege-Bastogne-Liege, Giro di Lombardia) and The World Championships. Tours span multiple days, the focus here is on the Monument Classics, which are intense one-day races, typically spanning 200km to 300km.
+ 
+Cycling is a sport that encompasses both individual and team dynamics. On an individual level, there can only be one winner. However, it also operates as a team sport, where intricate strategies revolve around the lead rider, typically the strongest cyclist in the team, and the domestiques who provide vital support. These efforts are strategically combined to propel the lead rider towards a winning position.
+
+It is a sport that manages to illustrate complex systems as a result of dynamic behaviours and energy considerations. As cyclists accelerate they are faced with air resistance, which results in a substantial increase in energy expenditure. To mitigate this energy loss, cyclists often form strategic alliances with riders from rival teams. In these alliances, each cyclist takes turns leading the group while others tuck into the slipstream, a technique known as drafting. It's worth noting that cyclists in a drafting position expend 30-40% less energy compared to when they are in the leading position. This act of cooperation often creates a peloton, a large group of riders. However, not all cyclists are cooperative, some may not take their turn leading whilst others may proceed to leave the pack altogether in a breakaway, in an attempt to either conserve energy for the end of the race or gain a strategic position.
+
+Cyclists in this way often depict flocking behaviour much like birds or a school of fish. 
+
+This simulation emphasizes the managerial role in the context of road cycling. During the race, in a vehicle, managers are allowed to approach their cyclists and facilitate real-time information and strategic guidance. To make this more engaging, this simulation has been turned into a game. The user assumes the role of the team manager, able to dispense crucial instructions and devise race-winning strategies while monitoring the energy levels of their team members. 
+
+If the user runs the simulation without playing the game, then their team will act as regular agents.
 
 ## HOW IT WORKS
 
 (what rules the agents use to create the overall behavior of the model)
+
+Envrionment
+- Time Step
+- Lattice
+- Boundary Conditions
+
+
+Patches
+
+Agents
+- Type
+- Vision
+- Properties
+- Behaviour
+- Parameters
+
+Reults
+- Measures
+
+, the lead rider of the user's team is the blue agent and the cyan agents are the domestiques of the team. 
+
+
 
 ## HOW TO USE IT
 
@@ -1059,6 +889,9 @@ countdown
 
 (suggested things for the user to notice while running the model)
 
+- Mention if there is stigmergy 
+- Mention if there is emergence
+
 ## THINGS TO TRY
 
 (suggested things for the user to try to do (move sliders, switches, etc.) with the model)
@@ -1066,6 +899,12 @@ countdown
 ## EXTENDING THE MODEL
 
 (suggested things to add or change in the Code tab to make the model more complicated, detailed, accurate, etc.)
+
+Elevation and energy drain as a result of elevation
+
+Whether the rider is a sprinter or climber. It is unknown whether some of these courses are great for climbers or sprinters so it would be cool to look into that. Maybe teams can look at allowing domestiques who are stronger at climbing to win those races to maintain rider happiness
+
+Crashing probabilities
 
 ## NETLOGO FEATURES
 
@@ -1078,8 +917,6 @@ countdown
 ## CREDITS AND REFERENCES
 
 (a reference to the model's URL on the web if it has one, as well as any other necessary credits, citations, and links)
-
-(http://ccl.northwestern.edu/netlogo/models/community/Town%20-%20Traffic%20&%20Crowd%20simulation )
 @#$#@#$#@
 default
 true

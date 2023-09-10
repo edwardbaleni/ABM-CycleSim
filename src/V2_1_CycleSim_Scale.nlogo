@@ -1,7 +1,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Define Environment ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-globals[ xmin xmax ymin ymax ]
+globals[ xmin xmax ymin ymax countdown]
 breed [ cyclists cyclist ]
 
 cyclists-own[
@@ -42,6 +42,16 @@ cyclists-own[
 
   exhausted
   extremeExhausted
+
+  attackStatus?
+  blockStatus?
+  bridgeStatus?
+  teamAttackStatus?
+
+  teamLead?
+
+
+  slowdown?
   ]
 
 patches-own[
@@ -74,7 +84,7 @@ to go
   lead                      ; Find leader in group and move prvious lead to the back
 
   ask cyclists [
-    if ticks mod 5 = 0 [
+    if ticks mod 5 = 0 and isBreak? = false [
       coop                  ; Find probability that turtles are cooperative
       breakawayCoop         ; Find probability that turtles will breakAway with Leader
     ]
@@ -82,7 +92,167 @@ to go
 
   updateSpeed               ; Update speed of the group
 
+  attackA
+
+  attackT
+
+  block
+
+  catch-group
+
   tick
+end
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Managerial Work ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+to attackAlone
+  ask cyclists with [ turtle-meaning = "teamLead"] [
+    if countdown = 0 [
+      set countdown 30
+      set attackStatus? true
+      print "Your lead cyclist is attacking alone, watch their energy levels!"
+    ]
+  ]
+end
+
+to attackA
+  ask cyclists with [ attackStatus? = true ]
+  [
+    ifelse countdown > 0 [
+      set speed 0.9 * maxSpeed
+      decrement-countdown
+    ][
+      set attackStatus? false
+      print "Your lead cyclist is no longer attacking!"
+    ]
+  ]
+end
+
+to teamBlock
+  ask cyclists with [turtle-meaning = "team"][
+    if countdown = 0 [
+      set countdown 30
+      set blockStatus? true
+    ]
+  ]
+end
+
+to block
+  ask cyclists with [blockStatus? = true][
+    ifelse countdown > 0 [
+      ifelse not any? other turtles in-cone 10 165  [
+        ask mates with [ blockStatus? = false ] [set isLead? false]
+        set isLead? true
+        set leadTime 5
+        set speed maxSpeed * 0.3
+        ask mates with [ blockStatus? = false and meaning != "teamLead"] [set speed speed]
+        ask mates with [ meaning = "teamLead" ][set speed 0.75 * maxSpeed]
+        print ( word "Teammate " cyclists-here " is blocking!" )
+      ][
+        print "A teammate is not in a favourable position to block!"
+        set speed maxSpeed * 0.9
+      ]
+      set countdown countdown - 1 / 6 ;decrement-countdown
+    ][
+      set blockStatus? false
+      print "A teammate is no longer blocking!"
+      set countdown 0
+    ]
+  ]
+end
+
+
+to teamAttack
+  ask cyclists with [ turtle-meaning = "team" or turtle-meaning = "teamLead"][
+    if countdown = 0 [
+      set teamAttackStatus? true
+    ]
+  ]
+
+  if countdown = 0 [ set countdown 30]
+end
+
+to attackT
+  ask cyclists with [ teamAttackStatus? = true][
+    ifelse countdown > 0 [
+      ifelse any? mates with [ teamAttackStatus? = false] or any? other cyclists in-cone 20 180 with [ teamAttackStatus? = false ][
+        ; First need to leave the pack
+        set speed 0.9 * maxSpeed
+        print "A teammate has attacked the peloton"
+      ][
+        ; Now regrup and create formation
+       if any? cohesion-group and not any? separation-group [
+          set bridgeStatus? true
+       ]
+      ]
+      set countdown countdown - ( 1 / 20 )
+    ][
+      set teamAttackStatus? false
+      set bridgeStatus? false
+      print "Your team has finished their attack"
+    ]
+  ]
+
+  if countdown < 0 [ set countdown 0]
+end
+
+to bridge
+  ask cyclists with [ turtle-meaning = "team" or turtle-meaning = "teamLead"][
+    if countdown = 0 [
+      if any? cohesion-group and not any? separation-group [
+        set countdown -1 ; -1 is just infinite, but this will continue until group is found
+        set bridgeStatus? true
+      ]
+    ]
+  ]
+
+end
+
+; resets the timer
+to catch-group
+  ask cyclists with [ bridgeStatus? = true and teamAttackStatus? = false ][
+    ifelse any? separation-group [
+      set speed [speed] of min-one-of separation-group [distance myself] + 1
+      set bridgestatus? false
+      set countdown 0
+      print ( word "A teammate has bridged the gap!" )
+    ][
+      breakaway
+      print ( word "A teammate is bridging!" )
+      if any? mates [
+        ask mates [ join-breakaway ]
+      ]
+    ]
+  ]
+end
+
+; This one does not reset the timer
+to catch-group2
+  ask cyclists with [ bridgeStatus? = true and teamAttackStatus? = true][
+    ifelse any? separation-group [
+      set speed [speed] of min-one-of separation-group [distance myself] + 1
+      set bridgestatus? false
+      print "A teammate has bridged the gap! And joined the attack group"
+    ][
+      breakaway
+      print "A teammate is trying to bridge and join the attack group!"
+      if any? mates [
+        ask mates [ join-breakaway ]
+      ]
+    ]
+  ]
+end
+
+
+to setup-countdown
+  set countdown 0
+end
+
+to decrement-countdown
+  set countdown countdown - 1
 end
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Handle Agents ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -210,6 +380,10 @@ to set-group-speed
       ]
     ]
   ]
+
+  ask cyclists with [not any? mates] [
+    set speed 0.75 * maxSpeed
+  ]
 end
 
 to find-breakaway-chance
@@ -254,7 +428,7 @@ to breakaway
 end
 
 to join-Breakaway
-  set breakLead min-one-of mates with [ isBreak? = true ] [ distance myself]
+  set breakLead min-one-of mates with [ isBreak? = true or bridgeStatus? = true ] [ distance myself]
   set speed [speed] of breakLead
   set color 37
 end
@@ -428,7 +602,7 @@ end
 ;;;;;;;;;;;;;;;;;;;;; ALIGN
 
 to align  ;; turtle procedure
-  ;set heading 90
+  set heading 90
   ;turn-towards average-matesheading 1  ; set angle that cyclist turns toward teamate
   ; This just makes sure that if a turtle drifts too far away, that it will come back into the race
   ;let closest-distance distance nearest-neighbor
@@ -675,10 +849,10 @@ ticks
 30.0
 
 BUTTON
-13
-335
-76
-368
+3
+238
+66
+271
 go
 go
 T
@@ -692,10 +866,10 @@ NIL
 1
 
 BUTTON
-93
-337
-156
-370
+4
+278
+67
+311
 setup
 setup
 NIL
@@ -709,25 +883,10 @@ NIL
 1
 
 SLIDER
-205
-390
-377
-423
-teamWork
-teamWork
-0
-1
-0.5
-0.1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-469
-385
-641
-418
+860
+243
+1032
+276
 Vision
 Vision
 0
@@ -739,10 +898,10 @@ m
 HORIZONTAL
 
 SLIDER
-470
-436
-642
-469
+861
+294
+1033
+327
 sep
 sep
 0
@@ -754,10 +913,10 @@ degrees
 HORIZONTAL
 
 SLIDER
-472
-482
-644
-515
+863
+340
+1035
+373
 coh
 coh
 0
@@ -769,20 +928,20 @@ degrees
 HORIZONTAL
 
 CHOOSER
-205
-436
-343
-481
+85
+266
+223
+311
 teamAbility
 teamAbility
 "Good" "Average" "Bad"
 0
 
 SLIDER
-8
-433
-180
-466
+6
+380
+178
+413
 leadWeight
 leadWeight
 60
@@ -794,10 +953,10 @@ kg
 HORIZONTAL
 
 SLIDER
-10
-478
-182
-511
+6
+334
+178
+367
 leadPower
 leadPower
 6
@@ -809,10 +968,10 @@ W/kg
 HORIZONTAL
 
 SLIDER
-11
-520
-183
-553
+189
+334
+361
+367
 leadCooperation
 leadCooperation
 0
@@ -824,10 +983,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-8
-389
-180
-422
+193
+381
+365
+414
 leadEnergy
 leadEnergy
 650
@@ -835,8 +994,87 @@ leadEnergy
 730.0
 1
 1
-seconds
+kiloJoules
 HORIZONTAL
+
+BUTTON
+405
+250
+509
+283
+Attack Alone
+attackAlone
+NIL
+1
+T
+OBSERVER
+NIL
+Z
+NIL
+NIL
+1
+
+BUTTON
+534
+304
+631
+337
+Team Block
+teamBlock
+NIL
+1
+T
+OBSERVER
+NIL
+D
+NIL
+NIL
+1
+
+BUTTON
+534
+354
+601
+387
+Bridge
+bridge
+NIL
+1
+T
+OBSERVER
+NIL
+S
+NIL
+NIL
+1
+
+BUTTON
+534
+252
+638
+285
+Team Attack
+teamAttack
+NIL
+1
+T
+OBSERVER
+NIL
+A
+NIL
+NIL
+1
+
+MONITOR
+406
+313
+483
+358
+Countdown
+countdown
+1
+1
+11
 
 @#$#@#$#@
 # Cycle Simulation
