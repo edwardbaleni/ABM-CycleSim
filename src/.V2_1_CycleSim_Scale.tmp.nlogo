@@ -36,6 +36,9 @@ cyclists-own[
 
   dist                          ; Calculate the distance travelled for each turtle (Do it in groups)
 
+  cohesion-group
+  separation-group
+  next-neighbor
 
   exhausted
   extremeExhausted
@@ -45,7 +48,6 @@ patches-own[
   meaning
 ]
 
-; create environment
 to setup
   clear-all
   set ymin -15
@@ -53,9 +55,11 @@ to setup
   draw-roads
   draw-neighbourhood
   place-cyclists
+
   ask cyclists[
     coop
     breakawayCoop]
+
   reset-ticks
 end
 
@@ -66,8 +70,6 @@ to go
   move                      ; Move agents for 5 minutes (one tick is one minute)
 
   pack                      ; Perfom flocking mechanism
-
-  ;crash                    ; Probability of crashing
 
   lead                      ; Find leader in group and move prvious lead to the back
 
@@ -80,8 +82,6 @@ to go
 
   updateSpeed               ; Update speed of the group
 
-  ;ask cyclists [ show energy ]
-
   tick
 end
 
@@ -91,6 +91,7 @@ to move
     ask cyclists [
     fd speed * 0.06
     energy-calc
+    show energy
   ]
 
   finish-cyclists
@@ -112,36 +113,62 @@ end
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Identify lead ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to lead
-  ask cyclists with [isLead? = true and leadTime > 0][
-    set leadTime leadTime - 1
+
+  decrement-lead-time
+
+  decrement-cooldown-time
+
+  defect
+
+  find-leader
+
+  ask cyclists with [ turtle-meaning != "teamLead" and isLead? = true][
+    set color yellow
   ]
 
-   ask cyclists with [ hasLead? = true][
-    set cooldown cooldown - 1
+   ask cyclists with [ isLead? = false and isBreak? = false ][
+    if turtle-meaning = "notTeam" [ set color magenta ]
+    if turtle-meaning = "team" [ set color cyan ]
+    if turtle-meaning = "teamLead" [ set color blue ]
   ]
 
-  ask cyclists with [ leadTime = 0 and hasLead? = false][
-    ; make cyclists that have lead to stop leading
-    set hasLead? true
-    set isLead? false
-    set cooldown 5
-  ]
+end
 
-    ask cyclists with [ isCoop? = false and isLead? = true ][
+to decrement-lead-time
+  ask cyclists with [isLead? = true][
+    ifelse leadTime = 0 [
+      set leadTime 5
+      set isLead? false
+      set hasLead? true
+    ][
+      set leadTime leadTime - 1
+    ]
+  ]
+end
+
+to decrement-cooldown-time
+  ask cyclists with [ hasLead? = true][
+    ifelse cooldown = 0 [
+      set cooldown 5
+      set hasLead? false
+    ][
+      set cooldown cooldown - 1
+    ]
+  ]
+end
+
+to defect
+  ask cyclists with [ isCoop? = false and isLead? = true ][
     ; ask uncooperative cyclists to set leadTime to 0
     set leadTime 0
+    set color blue + 13
   ]
+end
 
-
-  ask cyclists with [ cooldown = 0 and hasLead? = true ][
-    ; begin cooldown timer
-    set leadTime 5
-    set hasLead? false
-  ]
-
+to find-leader
   ; check if they have already lead, find the next leader
   ; if they have not already lead and no one nearby is a leader, they are leader
-  ask cyclists with [ any? mates and xcor > max [ xcor ] of mates] [
+  ask cyclists with [ any? mates and not any? other turtles in-cone 165  ] [
     ifelse hasLead? = true [
       next-leader
     ][
@@ -150,21 +177,6 @@ to lead
       ]
     ]
   ]
-
-  ask cyclists with [ not any? mates ][
-    set isLead? true
-  ]
-
-  ask cyclists with [ turtle-meaning != "teamLead" and isLead? = true][
-    set color yellow
-  ]
-
-   ask cyclists with [ isLead? = false ][
-    if turtle-meaning = "notTeam" [ set color magenta ]
-    if turtle-meaning = "team" [ set color cyan ]
-    if turtle-meaning = "teamLead" [ set color blue ]
-  ]
-
 end
 
 to next-leader
@@ -174,23 +186,33 @@ to next-leader
   ]
 end
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Update ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; UpdateSpeed ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 to updateSpeed
-  ask cyclists [
-    set leader min-one-of cyclists with [ isLead? = true ] [distance myself]
-    ask leader [ set speed 0.8 * ( mean [ maxSpeed ] of group) ]
 
-    ifelse hasLead? = false [
+  set-group-speed
+
+  find-breakaway-chance
+  ; Catch-up (If energy allows)
+
+end
+
+to set-group-speed
+  ask cyclists [
+    if any? group with [ isLead? = true ][
+      set leader min-one-of group with [ isLead? = true ] [distance myself]
+      ask leader [ set speed 0.8 * ( mean [ maxSpeed ] of group) ]
       set speed [ speed ] of leader
-    ][
-      if any? mates [
-      set color orange
-      set speed 0.6 * ( [ speed ] of leader )
+
+      if hasLead? = true [
+        set color orange
+        set speed 0.6 * ([ speed ] of leader)
       ]
     ]
   ]
+end
 
+to find-breakaway-chance
   ask cyclists with [ isLead? = true and isCoop? = false and maxSpeed * 0.8 > speed ] [
     set isBreak? true
     set isLead? false
@@ -207,19 +229,22 @@ to updateSpeed
     ]
   ]
 
+
   ask cyclists with [isBreakawayCoop? = true and any? mates with [isBreak? = true]][
     join-Breakaway
   ]
 
-
-  ask cyclists with [exhausted = true][
-    set speed maxSpeed * 0.
+    ask cyclists with [exhausted = true][
+    set speed maxSpeed * 0.4
   ]
 
   ask cyclists with [ extremeExhausted = true ][
-    set speed maxSpeed * 0.1
+    set speed maxSpeed * 0.2
   ]
 end
+
+
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Breakaway ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -233,7 +258,6 @@ to join-Breakaway
   set speed [speed] of breakLead
   set color 37
 end
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Cooperation ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -256,8 +280,6 @@ to breakawayCoop
 end
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Power Equations ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-
 to-report calcMaxSpeed
   ; Newton-Raphson method to calculate cubic roots
   let hold 0
@@ -362,29 +384,38 @@ to pack
   ask cyclists[
   find-mates
   find-group
-  ifelse any? mates [ find-nearest-neighbor
-      ifelse distance nearest-neighbor < 0.0009
+  find-alg-group
+  ifelse any? cohesion-group [
+      find-nearest-neighbor
+      ifelse distance next-neighbor < 0.0001
         [ separate ]
         [ align
           cohere ] ] [ set heading 90]
   ]
 end
 
+to find-alg-group
+  set cohesion-group other turtles in-cone 0.01 140
+  set separation-group other turtles in-cone 0.001 140
+end
+
 to find-group
-  set group turtles in-radius (vision * 0.001)
+  set group turtles in-radius ( vision * 0.02 )
 end
 to find-mates
-  set mates other turtles in-radius ( vision * 0.001 ) ; set radius to find teammates
+  set mates other turtles in-radius ( vision * 0.02 ) ; set radius to find teammates
 end
 
 to find-nearest-neighbor ;; turtle procedure
-  set nearest-neighbor min-one-of mates[ distance myself ] ; finds the neighbour with the minimum distance from cyclist
+  set nearest-neighbor min-one-of mates[ distance myself ] ; finds the neighbour with the minimum distance from cyclist\
+  set next-neighbor min-one-of cohesion-group [distance myself]
 end
 
 to separate
-  turn-away ([heading] of nearest-neighbor) sep  ; set angle that cyclicst can turn away from
+  turn-away ([heading] of next-neighbor) sep  ; set angle that cyclicst can turn away from
   ; ifelse random-float 1 < 0.9 [ turn-sep] [slow-down]       ; If I want my agents to either slow down or turn away
 end
+
 
 to turn-sep
   turn-away ([heading] of nearest-neighbor) sep
@@ -397,7 +428,7 @@ end
 ;;;;;;;;;;;;;;;;;;;;; ALIGN
 
 to align  ;; turtle procedure
-  set heading 90
+  ;set heading 90
   ;turn-towards average-matesheading 1  ; set angle that cyclist turns toward teamate
   ; This just makes sure that if a turtle drifts too far away, that it will come back into the race
   ;let closest-distance distance nearest-neighbor
@@ -412,12 +443,15 @@ to-report average-matesheading  ;; turtle procedure
     [ report atan x-component y-component ]
 end
 
+
 to cohere  ;; turtle procedure
   turn-towards average-heading-towards-mates coh
 end
 
 to-report average-heading-towards-mates
-  let x-component mean [sin (towards myself + 180)] of mates  let y-component mean [cos (towards myself + 180)] of mates  ifelse x-component = 0 and y-component = 0
+  let x-component mean [sin (towards myself + 180)] of cohesion-group
+  let y-component mean [cos (towards myself + 180)] of cohesion-group
+  ifelse x-component = 0 and y-component = 0
     [ report heading ]
     [ report atan x-component y-component ]
 end
@@ -439,8 +473,6 @@ to turn-at-most [turn max-turn]  ;; turtle procedure
         [ lt max-turn ] ]
     [ rt turn ]
 end
-
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Setup Environment ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -551,8 +583,8 @@ to place-cyclists
 
     set maxSpeed calcMaxSpeed
 
-      set  exhausted false
-  set  extremeExhausted false
+    set  exhausted false
+    set  extremeExhausted false
 
     move-to one-of patches with [meaning = "start"]
   ]
@@ -800,20 +832,54 @@ leadEnergy
 leadEnergy
 650
 800
-800.0
+730.0
 1
 1
 seconds
 HORIZONTAL
 
 @#$#@#$#@
+# Cycle Simulation
+
 ## WHAT IS IT?
 
-(a general understanding of what the model is trying to show or explain)
+Road cycling is a popular sport where a group of riders start together, often as a rolling start - a race that begins while cyclists are already in motion, in contrast to a standing start where they commence from a standstill. The cyclists race one another to the finish line to win the race. Cyclists participate in many prestigious events known as classics throughout the year, with some of the most renowned being: The Grand Tours (i.e. Tour de France, Giro d'Italia, Vuelta a Espana), The Monument Classics (i.e. Milan-Sanremo, Tour of Flanders, Paris-Roubaix, Liege-Bastogne-Liege, Giro di Lombardia) and The World Championships. Tours span multiple days, the focus here is on the Monument Classics, which are intense one-day races, typically spanning 200km to 300km.
+ 
+Cycling is a sport that encompasses both individual and team dynamics. On an individual level, there can only be one winner. However, it also operates as a team sport, where intricate strategies revolve around the lead rider, typically the strongest cyclist in the team, and the domestiques who provide vital support. These efforts are strategically combined to propel the lead rider towards a winning position.
+
+It is a sport that manages to illustrate complex systems as a result of dynamic behaviours and energy considerations. As cyclists accelerate they are faced with air resistance, which results in a substantial increase in energy expenditure. To mitigate this energy loss, cyclists often form strategic alliances with riders from rival teams. In these alliances, each cyclist takes turns leading the group while others tuck into the slipstream, a technique known as drafting. It's worth noting that cyclists in a drafting position expend 30-40% less energy compared to when they are in the leading position. This act of cooperation often creates a peloton, a large group of riders. However, not all cyclists are cooperative, some may not take their turn leading whilst others may proceed to leave the pack altogether in a breakaway, in an attempt to either conserve energy for the end of the race or gain a strategic position.
+
+Cyclists in this way often depict flocking behaviour much like birds or a school of fish. 
+
+This simulation emphasizes the managerial role in the context of road cycling. During the race, in a vehicle, managers are allowed to approach their cyclists and facilitate real-time information and strategic guidance. To make this more engaging, this simulation has been turned into a game. The user assumes the role of the team manager, able to dispense crucial instructions and devise race-winning strategies while monitoring the energy levels of their team members. 
+
+If the user runs the simulation without playing the game, then their team will act as regular agents.
 
 ## HOW IT WORKS
 
 (what rules the agents use to create the overall behavior of the model)
+
+Envrionment
+- Time Step
+- Lattice
+- Boundary Conditions
+
+
+Patches
+
+Agents
+- Type
+- Vision
+- Properties
+- Behaviour
+- Parameters
+
+Reults
+- Measures
+
+, the lead rider of the user's team is the blue agent and the cyan agents are the domestiques of the team. 
+
+
 
 ## HOW TO USE IT
 
@@ -823,6 +889,9 @@ HORIZONTAL
 
 (suggested things for the user to notice while running the model)
 
+- Mention if there is stigmergy 
+- Mention if there is emergence
+
 ## THINGS TO TRY
 
 (suggested things for the user to try to do (move sliders, switches, etc.) with the model)
@@ -830,6 +899,12 @@ HORIZONTAL
 ## EXTENDING THE MODEL
 
 (suggested things to add or change in the Code tab to make the model more complicated, detailed, accurate, etc.)
+
+Elevation and energy drain as a result of elevation
+
+Whether the rider is a sprinter or climber. It is unknown whether some of these courses are great for climbers or sprinters so it would be cool to look into that. Maybe teams can look at allowing domestiques who are stronger at climbing to win those races to maintain rider happiness
+
+Crashing probabilities
 
 ## NETLOGO FEATURES
 

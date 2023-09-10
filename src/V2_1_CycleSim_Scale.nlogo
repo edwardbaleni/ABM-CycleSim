@@ -40,7 +40,8 @@ cyclists-own[
   separation-group
   next-neighbor
 
-  team                          ; for team work of our actual team (teamwork)
+  exhausted
+  extremeExhausted
   ]
 
 patches-own[
@@ -89,7 +90,7 @@ end
 to move
     ask cyclists [
     fd speed * 0.06
-    set energy energyEqns
+    energy-calc
     show energy
   ]
 
@@ -167,7 +168,7 @@ end
 to find-leader
   ; check if they have already lead, find the next leader
   ; if they have not already lead and no one nearby is a leader, they are leader
-  ask cyclists with [ any? mates and not any? other turtles in-cone 0.02 165 ] [
+  ask cyclists with [ any? mates and not any? other turtles in-cone 0.01 165 ] [
     ifelse hasLead? = true [
       next-leader
     ][
@@ -205,7 +206,7 @@ to set-group-speed
 
       if hasLead? = true [
         set color orange
-        set speed 0.7 * ([ speed ] of leader)
+        set speed 0.6 * ([ speed ] of leader)
       ]
     ]
   ]
@@ -231,6 +232,14 @@ to find-breakaway-chance
 
   ask cyclists with [isBreakawayCoop? = true and any? mates with [isBreak? = true]][
     join-Breakaway
+  ]
+
+    ask cyclists with [exhausted = true][
+    set speed maxSpeed * 0.4
+  ]
+
+  ask cyclists with [ extremeExhausted = true ][
+    set speed maxSpeed * 0.2
   ]
 end
 
@@ -271,8 +280,6 @@ to breakawayCoop
 end
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Power Equations ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-
 to-report calcMaxSpeed
   ; Newton-Raphson method to calculate cubic roots
   let hold 0
@@ -310,22 +317,66 @@ to-report powerEqns [ d_w v ]
   ;P_tot    = P_roll + P_air
   let P_tot (P_roll + P_air)
 
-  report ( P_tot / (maxPower * rider-mass ) )
+  report ( P_tot )
 end
 
 to-report energyEqns
   let d 100
   let vel 0
-  let close other turtles in-cone 0.003 160
+  let close other turtles in-cone 3 160
   let closest min-one-of close [distance myself]
-  ifelse any? other cyclists in-cone 0.003 160 [
+  ifelse any? other cyclists in-cone 3 160 [
     set d distance closest
   ][
     set d 100
   ]
-  set vel speed
-  show vel
- report energy - ( 60 * ( e ^ ( -6.35 * ln (powerEqns (d * 1000) vel) + 2.478 ) ) )
+  set vel speed * 0.06
+
+ report (energy - ( e ^ ( -6.35 * ln ( (powerEqns d vel) / maxPower ) + 2.478 ) ) * 60)
+end
+
+to energy-calc
+  let d 10
+  let close other turtles in-cone 160 3
+  let closest min-one-of close [distance myself]
+  ifelse any? other cyclists in-cone 160 3 [
+    set d distance closest
+  ][
+    set d 100
+  ]
+
+  ; set to metres from kilometres
+  set d d * 1000
+  ; keep velocity at m/s
+  let vel speed
+
+  ; has to be in seconds not minutes
+  let energy-used 0
+  set energy-used ( powerEqns d vel ) * 60
+
+  ;show energy-used
+
+  ; energy expenditure
+  set energy energy - energy-used / 1000
+  set energy energy + 200 * 60 / 1000 ;recovery / 1000
+
+  show energy
+
+  if energy > 1000[set energy 1000] ;caps storage of energy at 1000kJ
+
+  ifelse energy < 100 [   ;defines a cyclist as exhausted
+    set exhausted true
+  ][
+    set exhausted false
+  ]
+
+  if energy <= 0  ;cyclist completely spent - he moves to the leftmost coordinate and becomes much slower
+    [
+      set extremeExhausted true
+      set energy 0
+    ]
+
+
 end
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Flocking ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -344,7 +395,7 @@ to pack
 end
 
 to find-alg-group
-  set cohesion-group other turtles in-cone 0.02 140
+  set cohesion-group other turtles in-cone 0.01 140
   set separation-group other turtles in-cone 0.001 140
 end
 
@@ -522,7 +573,6 @@ to place-cyclists
     set maxPower random-normal 7.1 0.4
     set cooperation random-normal 0.3 0.3;0.48 0.2
     set energy 716
-    set team -100000 ; so that they aren't included in calculations only do for teamwork > 0
     set turtle-meaning "notTeam"
     set isLead? false
 
@@ -532,7 +582,10 @@ to place-cyclists
     set speed random-normal 10 0.5
 
     set maxSpeed calcMaxSpeed
-    ;set maxSpeed
+
+    set  exhausted false
+    set  extremeExhausted false
+
     move-to one-of patches with [meaning = "start"]
   ]
 
@@ -551,7 +604,6 @@ to place-cyclists
     set energy 716                        ; conversion (Cyclist has energy of 12 minues at full power, or 715s), we have converted this to a scale of 0 - 100 by multiplying Tlim by 8.3
     set isBreak? false
 
-    set team teamWork
     set turtle-meaning "team"
     set isLead? false
 
@@ -560,6 +612,9 @@ to place-cyclists
     set speed random-normal 10 0.5
 
     set maxSpeed calcMaxSpeed
+
+      set  exhausted false
+  set  extremeExhausted false
 
     move-to one-of patches with [meaning = "start"]
   ]
@@ -584,6 +639,9 @@ to place-cyclists
     set speed random-normal 10 0.5
 
     set maxSpeed calcMaxSpeed
+
+  set  exhausted false
+  set  extremeExhausted false
 
     move-to one-of patches with [meaning = "start"]
   ]
