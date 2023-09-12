@@ -2,7 +2,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Define Environment ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-globals [ countdown ]
+globals [ countdown leadP vision sep coh ]
 
 breed [ cyclists cyclist ]
 
@@ -19,40 +19,31 @@ cyclists-own[
   isLead?                       ; Allocate whether cyclist is in the front of the pack or not
   mates                         ; Allocates teammates generally to cyclist not for actual team
   group                         ; Allocates the full team including cyclist-here
-
   nearest-neighbor              ; Looks for the cyclist's nearest neighbours
   leader                        ; Identify leader of pack and assign to each agent
   breakLead                     ; BreakLeader, identifies cyclist that will lead break
-
   isBreak?                      ; The probability of breaking away
-
   crash-prob                    ; The probability that the cyclist will crash
   aggression                    ; A cyclists level of aggression
   turtle-meaning                ; Set meaning
-
-  hasLead?                      ;
-
+  hasLead?                      ; Has the cyclist lead
   leadTime                      ; Variable used to determine whether to lead or not to lead
   cooldown                      ; Variable used to determine if cyclist is cooling down
-  breakTime
-
+  breakTime                     ; Time that cyclist has been in breakaway
   dist                          ; Calculate the distance travelled for each turtle (Do it in groups)
-
-  cohesion-group
-  separation-group
-  next-neighbor
-
-  team                          ; for team work of our actual team (teamwork)
-
-  attackStatus?
-  blockStatus?
-  bridgeStatus?
-  teamAttackStatus?
-
-  teamLead?
-
-
-  slowdown?
+  CF_draft                      ; Drafting coefficient
+  powerP                        ; Proportion of power cyclist uses
+  cohesion-group                ; Number of cyclists in-cone 0.02 140
+  separation-group              ; Number of cyclists in-cone 0.002 140
+  next-neighbor                 ; Closest turtle ahead
+  totalEnergy                   ; Total energy that cyclist has
+  exhausted                     ; Is the cyclist exhauseted
+  extremeExhausted              ; Is the cyclist extremely exhausted
+  recovery                      ; Recovery rate of cyclist
+  attackStatus?                 ; Is the cyclist attacking
+  blockStatus?                  ; Is the cyclist blocking
+  bridgeStatus?                 ; Is the cyclist bridging
+  teamAttackStatus?             ; Is the team attacking
   ]
 
 patches-own[
@@ -65,6 +56,10 @@ to setup
   draw-neighbourhood
   place-cyclists
 
+  set leadP 0
+  set vision 4
+  set sep 3
+  set coh 4
   ask cyclists[
     coop
     breakawayCoop]
@@ -82,22 +77,25 @@ to go
   lead                      ; Find leader in group and move prvious lead to the back
 
   ask cyclists [
-    ; don't want to change coop mid breakaway
     if ticks mod 5 = 0 and isBreak? = false [
-      coop
-      breakawayCoop
+      coop                  ; Find probability that turtles are cooperative
+      breakawayCoop         ; Find probability that turtles will breakAway with Leader
     ]
   ]
 
   updateSpeed               ; Update speed of the group
 
-  attackA
+  attackA                   ; Individual Attack
 
-  attackT
+  attackT                   ; Team Attack
 
-  block
+  block                     ; Team performs a block
 
-  catch-group
+  catch-group               ; Cyclist bridges the gap
+
+  fatigued                  ; Is cyclist tired?
+
+  ;sprint                    ; Final sprint
 
   tick
 end
@@ -253,6 +251,17 @@ to decrement-countdown
   set countdown countdown - 1
 end
 
+to fatigued
+  ask cyclists with [exhausted = true][
+    set speed maxSpeed * 0.7
+  ]
+
+  ask cyclists with [ extremeExhausted = true ][
+    set speed maxSpeed * 0.5
+  ]
+end
+
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Procedures ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -263,7 +272,7 @@ end
 to move
   ask cyclists [
     fd speed * 0.06
-    set energy energyEqns
+    ;energy-calc
   ]
 
   finish-cyclists
@@ -273,7 +282,9 @@ end
 
 to finish-cyclists
   ask patches with [ meaning = "finish"][
-    ask cyclists-here [stamp die]
+    ask cyclists-here [
+      if any? cyclists with [ turtle-meaning = "teamLead"][ set leadP leadP + 1]
+      stamp die]
   ]
 end
 
@@ -360,7 +371,6 @@ to updateSpeed
   set-group-speed
 
   find-breakaway-chance
-  ; Catch-up (If energy allows)
 
 end
 
@@ -404,13 +414,25 @@ to find-breakaway-chance
   ask cyclists with [isBreakawayCoop? = true and any? mates with [isBreak? = true]][
     join-Breakaway
   ]
-
-  ;ask cyclists with [slowdown? = true and any? mates]
-  ;[set speed 0.97 * speed]
 end
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Final Sprint ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-
+;to sprint
+  ; engage in final sprint
+;  ask cyclists with [ (max-pxcor - 2 - xcor) <= 6][
+;    ifelse energy / totalEnergy > 0.3 [
+;      set speed maxSpeed
+;    ][
+;      if energy / totalEnergy > 0 [
+;        set speed maxSpeed * 0.7
+;      ]
+;    ]
+;    if energy / totalEnergy = 0 [
+;      set speed 0.5 * maxSpeed
+;    ]
+;  ]
+;end
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Breakaway ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -467,7 +489,7 @@ end
 to-report powerEqns [ d_w v ]
   ; There is no drafting benefit available if a cyclist is more than 3 metres away from preceding rider, so set CF_draft to 1 if this is the case
   ;CF_draft =  0.62 − 0.0104 d_w + 0.0452 d_w^2
-  let CF_draft 1
+  set CF_draft 1
   if d_w <= 3 [
     set CF_draft ( 0.62 - 0.0104 * d_w + 0.0452 * d_w ^ 2)
   ]
@@ -485,7 +507,9 @@ to-report powerEqns [ d_w v ]
   ;P_tot    = P_roll + P_air
   let P_tot (P_roll + P_air)
 
-  report ( P_tot / maxPower )
+  set powerP P_tot / 450
+
+  report ( P_tot )
 end
 
 to-report energyEqns
@@ -498,9 +522,54 @@ to-report energyEqns
   ][
     set d 100
   ]
-  set vel speed / 3.6
-  ;show d
- report (energy - ( e ^ ( -6.35 * ln (powerEqns d vel) + 2.478 ) ) * 60)
+  set vel speed * 0.06
+
+ report (energy - ( e ^ ( -6.35 * ln ( (powerEqns d vel) / maxPower ) + 2.478 ) ) * 60)
+end
+
+to energy-calc
+  let d 100
+  let close other turtles in-cone 160 3
+  let closest min-one-of close [distance myself]
+  ifelse any? other cyclists in-cone 160 3 [
+    set d distance closest
+  ][
+    set d 100
+  ]
+
+  ; set to metres from kilometres
+  set d d / 1000
+  ; keep velocity at m/s
+  let vel speed
+
+  ; has to be in seconds not minutes
+  let energy-used 0
+  set energy-used ( powerEqns d vel ) * 60
+
+  ;show energy-used
+
+  ; energy expenditure
+  set energy energy - energy-used / 1000
+  set energy energy + recovery * 60 / 1000
+
+  ;show energy
+
+  if energy > 1000[set energy 1000] ;caps storage of energy at 1000kJ
+
+  ifelse energy < 100 [   ;defines a cyclist as exhausted
+    set exhausted true
+  ][
+    set exhausted false
+  ]
+
+  ifelse energy <= 0  ;cyclist completely spent - he moves to the leftmost coordinate and becomes much slower
+    [
+      set extremeExhausted true
+    ][
+      set extremeExhausted false
+  ]
+
+
 end
 
 
@@ -544,28 +613,20 @@ to separate
 end
 
 to turn-sep
-  set slowdown? false
   turn-away ([heading] of next-neighbor) sep
-end
-
-to slow-down
-  set slowdown? true
 end
 
 ;;;;;;;;;;;;;;;;;;;;; ALIGN
 
 to align  ;; turtle procedure
   set heading 90
-  ;turn-towards average-matesheading 1  ; set angle that cyclist turns toward teamate
-  ; This just makes sure that if a turtle drifts too far away, that it will come back into the race
-  ;let closest-distance distance nearest-neighbor
-  ;if closest-distance > 3 [
-  ;  turn-at-most (subtract-headings [heading] of nearest-neighbor heading) 5]
 end
 
 to-report average-matesheading  ;; turtle procedure
   ; average heading
-  let x-component sum [dx] of mates  let y-component sum [dy] of mates  ifelse x-component = 0 and y-component = 0
+  let x-component sum [dx] of mates
+  let y-component sum [dy] of mates
+  ifelse x-component = 0 and y-component = 0
     [ report heading ]
     [ report atan x-component y-component ]
 end
@@ -703,7 +764,6 @@ to place-cyclists
     set cooperation random-normal 0.48 0.2
     set energy 716
 ;    set breakawayCooperation random-normal 0.3 0.1 ; selection of 0.3 and 0.1 is quite random at the moment
-    set team -100000 ; so that they aren't included in calculations only do for teamwork > 0
     set turtle-meaning "notTeam"
     set isLead? false
 
@@ -905,51 +965,6 @@ NIL
 HORIZONTAL
 
 SLIDER
-844
-508
-1016
-541
-sep
-sep
-0
-10
-3.0
-0.1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-844
-549
-1016
-582
-coh
-coh
-0
-10
-4.0
-0.1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-844
-463
-1016
-496
-vision
-vision
-0
-5
-4.013
-0.001
-1
-NIL
-HORIZONTAL
-
-SLIDER
 206
 585
 379
@@ -1033,54 +1048,38 @@ NIL
 0
 
 MONITOR
-483
-503
-560
-548
-Countdown
+455
+496
+591
+541
+Countdown (Minutes)
 countdown
 1
 1
 11
 
+MONITOR
+796
+448
+869
+509
+Position
+leadP
+0
+1
+15
+
 @#$#@#$#@
 ## WHAT IS IT?
 
-(a general understanding of what the model is trying to show or explain)
+This is a visual representation of the to-scale game: CycleSim_toScale.nlogo
 
-## HOW IT WORKS
+### Things to notice
 
-(what rules the agents use to create the overall behavior of the model)
+One thing to notice here that has not been detailed in the to-scale version is here we see the effects of flocking on the race. Cyclists can't easily gain position just by attacking as there are other cyclists in the way. They have to continuously 
+manoeuvre through the flock in strange ways so that they do not crash.
 
-## HOW TO USE IT
-
-(how to use the model, including a description of each of the items in the Interface tab)
-
-## THINGS TO NOTICE
-
-(suggested things for the user to notice while running the model)
-
-## THINGS TO TRY
-
-(suggested things for the user to try to do (move sliders, switches, etc.) with the model)
-
-## EXTENDING THE MODEL
-
-(suggested things to add or change in the Code tab to make the model more complicated, detailed, accurate, etc.)
-
-## NETLOGO FEATURES
-
-(interesting or unusual features of NetLogo that the model uses, particularly in the Code tab; or where workarounds were needed for missing features)
-
-## RELATED MODELS
-
-(models in the NetLogo Models Library and elsewhere which are of related interest)
-
-## CREDITS AND REFERENCES
-
-(a reference to the model's URL on the web if it has one, as well as any other necessary credits, citations, and links)
-
-(http://ccl.northwestern.edu/netlogo/models/community/Town%20-%20Traffic%20&%20Crowd%20simulation )
+##### As it is not up to scale, the energy and power equations do not work well here.
 @#$#@#$#@
 default
 true
