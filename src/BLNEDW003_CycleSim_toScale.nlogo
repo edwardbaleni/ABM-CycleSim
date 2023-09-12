@@ -1190,6 +1190,8 @@ If the user runs the simulation without playing the game, then their team will a
 
 ## HOW IT WORKS
 
+The decisions on the settings of some of the properties set for the cyclists are based on information provided by Hoenigman et al. (2011). The parameters were also chosen in regard to the paper by Hoenigman et al. (2011). Ideally, expenditure of energy should be done using the equation provided by Olds T. (1998) as this is the standard used for energy calculations; this method was also used by Hoenigman et al. (2011). HOwever, in this study, a more rudimentary approach for energy calculation was done, which corresponded to energy calculations as in Martins Ratamero, E. (2015).
+
 ### Envrionment
 
 The environment is depicted as a square lattice, where agents are constrained to movement in directions: left, right, diagonal, and straight. The cyclists cannot move backwards and their heading should always be greater than 0 and less than 180, with 90 degree headings majority of the time during the race.
@@ -1210,16 +1212,17 @@ The topology is bounded, as the primary objective for the riders is to travel fr
 - Radius - Within a peloton, the cyclist is able to determine who is in their riding pack by selecting cyclists that are within a radius of 20 metres.
 - Size, Shape, Heading - these aspects are all preset respectively to 1, a circle and 90 degrees.
 - Colour - The lead rider of the user's team is assigned blue, the cyan agents are the domestiques of the team. The magenta cyclists are the adversaries. When a cyclist turns green it means they are performing a breakaway. If they turn grey it means they are joining a breakaway attempt. If a cyclist turns yellow it means they are a cyclist in a leading position, if they turn orange it means they have either just finished leading or are defecting.
-- Bike mass - This represents the mass of the bicycle, set at 7kg by default.
-- rider mass - This is the mass of the cyclist which is set to 63kg by default.
+- Bike mass - This represents the mass of the bicycle, set at 7kg by default  (Hoenigman et al. 2011).
+- rider mass - This is the mass of the cyclist which is set to 63kg by default(Hoenigman et al. 2011).
+
 #### Behaviour
 - Move - The cyclist moves forward in the specified direction by a speed in km/minute.
 - Flocking - The cyclist obeys two behaviours: If they are too close to another cyclist in front of them, they will change their direction to avoid that cyclist. If a cyclist can see another cyclist but is a but not close to them, they will direct their heading to move towards them.
-- Lead - If a cyclist is at the head of the pack they will be leading the pack as other cyclists fall in to their slipstream. If they've led for 5 minutes, they slow their pace in order to retreat as the leader of the pack and cool down for 5 minutes. The speed will then be set to the pack's average (0.8 * maxSpeed). 
+- Lead - If a cyclist is at the head of the pack they will be leading the pack as other cyclists fall in to their slipstream. If they've led for 5 minutes, they slow their pace in order to retreat as the leader of the pack and cool down for 5 minutes. The speed will then be set to the pack's average (0.8 * maxSpeed) (Hoenigman et al. 2011). 
 - Attack - This is an aggressive jump away from other cyclists, or an attempt to leave the pack. The cyclist will increase their speed to 0.9 * maxSpeed.
 - Bridge - If a cyclist is too far away from the pack they look to catch up.
-- Block - A strategy employed to slow down the peloton. The leads teammates get to the front of the pack and slow down the pace. They will reduce the pace of the peloton to 0.3 * maxSpeed
-- Breakaway - If a cyclist is able to, is at the front of the pack and is strategic to some extent, they will attempt to attack the pack. They will increase their speed to 0.9 * maxSpeed
+- Block - A strategy employed to slow down the peloton. The leads teammates get to the front of the pack and slow down the pace. They will reduce the pace of the peloton to 0.3 * maxSpeed.
+- Breakaway - If a cyclist is able to, is at the front of the pack and is strategic to some extent, they will attempt to attack the pack. They will increase their speed to 0.9 * maxSpeed (Hoenigman et al. 2011).
 - Follow Breakaway - If a cyclist is strategic enough they will try to get in the slipstream of a cyclist performing a breakaway.
 	
 #### Parameters
