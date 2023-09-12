@@ -1,7 +1,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Define Environment ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-globals[ xmin xmax ymin ymax countdown leadP]
+;extensions [table csv]
+globals[ xmin xmax ymin ymax countdown leadP vision sep coh ]
 breed [ cyclists cyclist ]
 
 cyclists-own[
@@ -72,6 +73,9 @@ to setup
   place-cyclists
 
   set leadP 0
+  set vision 5
+  set sep 1.561
+  set coh 0.991
   ask cyclists[
     coop
     breakawayCoop]
@@ -578,27 +582,11 @@ to energy-calc
   ifelse energy <= 0  ;cyclist completely spent - he moves to the leftmost coordinate and becomes much slower
     [
       set extremeExhausted true
-      ;set energy 0
     ][
       set extremeExhausted false
   ]
 
 
-end
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Position ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-to find-position
-  ask cyclists with [fin? = true ][
-    let pos 0
-    if not any? cyclists with [ turtle-meaning = "teamLead"][
-      set fin? false
-      set pos count turtles
-    ]
-
-    set pos 175 - pos
-    show pos
-  ]
 end
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; Flocking ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -871,8 +859,8 @@ to place-cyclists
 
     set maxSpeed calcMaxSpeed
 
-    set  exhausted false
-    set  extremeExhausted false
+    set exhausted false
+    set extremeExhausted false
     set recovery random-normal 180 20
 
     set fin? true
@@ -944,51 +932,6 @@ NIL
 NIL
 1
 
-SLIDER
-860
-243
-1032
-276
-Vision
-Vision
-0
-5
-5.0
-0.01
-1
-m
-HORIZONTAL
-
-SLIDER
-861
-294
-1033
-327
-sep
-sep
-0
-5
-1.561
-0.001
-1
-degrees
-HORIZONTAL
-
-SLIDER
-863
-340
-1035
-373
-coh
-coh
-0
-3
-0.991
-0.001
-1
-degrees
-HORIZONTAL
-
 CHOOSER
 85
 266
@@ -997,7 +940,7 @@ CHOOSER
 teamAbility
 teamAbility
 "Good" "Average" "Bad"
-1
+0
 
 SLIDER
 6
@@ -1008,7 +951,7 @@ leadWeight
 leadWeight
 60
 100
-62.8
+63.0
 0.1
 1
 kg
@@ -1038,7 +981,7 @@ leadCooperation
 leadCooperation
 0
 1
-0.45
+0.5
 0.01
 1
 NIL
@@ -1053,7 +996,7 @@ leadEnergy
 leadEnergy
 650
 800
-650.0
+800.0
 1
 1
 kiloJoules
@@ -1154,20 +1097,20 @@ true
 true
 "" ""
 PENS
-"Adviseries" 1.0 0 -7858858 true "" "plot mean [ energy ] of cyclists with [turtle-meaning = \"notTeam\"]"
-"Team Lead" 1.0 0 -14070903 true "" "plot mean [ energy ] of cyclists with [turtle-meaning = \"teamLead\"]"
-"Team" 1.0 0 -7500403 true "" "plot mean [ energy ] of cyclists with [turtle-meaning = \"team\"]"
+"Adviseries" 1.0 0 -7858858 true "" "if any? cyclists with [turtle-meaning = \"notTeam\"] [plot mean [ energy ] of cyclists with [turtle-meaning = \"notTeam\"]]"
+"Team Lead" 1.0 0 -14070903 true "" "if any? cyclists with [turtle-meaning = \"teamLead\"] [plot mean [ energy ] of cyclists with [turtle-meaning = \"teamLead\"]]"
+"Team" 1.0 0 -7500403 true "" "if any? cyclists with [turtle-meaning = \"team\"] [plot mean [ energy ] of cyclists with [turtle-meaning = \"team\"]]"
 
 MONITOR
-1253
-433
-1311
-478
+1122
+246
+1215
+307
 Position
 leadP
 0
 1
-11
+15
 
 PLOT
 515
@@ -1185,9 +1128,9 @@ true
 true
 "" ""
 PENS
-"Adviseries" 1.0 0 -7858858 true "" "plot mean [ CF_draft ] of cyclists with [turtle-meaning = \"notTeam\"]"
-"Team Lead" 1.0 0 -14070903 true "" "plot mean [ CF_draft ] of cyclists with [turtle-meaning = \"teamLead\"]"
-"Team" 1.0 0 -9276814 true "" "plot mean [ CF_draft ] of cyclists with [turtle-meaning = \"team\"]"
+"Adviseries" 1.0 0 -7858858 true "" "if any? cyclists with [turtle-meaning = \"notTeam\"] [ plot mean [ CF_draft ] of cyclists with [turtle-meaning = \"notTeam\"]]"
+"Team Lead" 1.0 0 -14070903 true "" "if any? cyclists with [turtle-meaning = \"teamLead\"] [ plot mean [ CF_draft ] of cyclists with [turtle-meaning = \"teamLead\"]]"
+"Team" 1.0 0 -9276814 true "" "if any? cyclists with [turtle-meaning = \"team\"][ plot mean [ CF_draft ] of cyclists with [turtle-meaning = \"team\"]]"
 
 PLOT
 911
@@ -1205,9 +1148,28 @@ true
 true
 "" ""
 PENS
-"Adviseries" 1.0 0 -7858858 true "" "plot mean [ powerP ] of cyclists with [turtle-meaning = \"notTeam\"]"
-"Team Lead" 1.0 0 -14070903 true "" "plot mean [ powerP ] of cyclists with [turtle-meaning = \"teamLead\"]\n"
-"Team" 1.0 0 -11053225 true "" "plot mean [ powerP ] of cyclists with [turtle-meaning = \"team\"]"
+"Adviseries" 1.0 0 -7858858 true "" "if any? cyclists with [turtle-meaning = \"notTeam\"][plot mean [ powerP ] of cyclists with [turtle-meaning = \"notTeam\"]]"
+"Team Lead" 1.0 0 -14070903 true "" "if any? cyclists with [turtle-meaning = \"teamLead\"][plot mean [ powerP ] of cyclists with [turtle-meaning = \"teamLead\"]]\n\n"
+"Team" 1.0 0 -11053225 true "" "if any? cyclists with [turtle-meaning = \"team\"][plot mean [ powerP ] of cyclists with [turtle-meaning = \"team\"]]"
+
+PLOT
+692
+248
+1095
+398
+Exhausted Turtles
+NIL
+NIL
+0.0
+0.0
+0.0
+0.0
+true
+true
+"" ""
+PENS
+"Exhaust" 1.0 0 -4079321 true "" "plot count turtles with [exhausted = true]"
+"Ext. Exhaust" 1.0 0 -14439633 true "" "plot count turtles with [extremeExhausted = true]"
 
 @#$#@#$#@
 # Cycle Simulation
@@ -1228,40 +1190,77 @@ If the user runs the simulation without playing the game, then their team will a
 
 ## HOW IT WORKS
 
-(what rules the agents use to create the overall behavior of the model)
-
 ### Envrionment
-- Time Stepn
-- Lattice
-- Boundary Conditions
 
+The environment is depicted as a square lattice, where agents are constrained to movement in directions: left, right, diagonal, and straight. The cyclists cannot move backwards and their heading always be greater than 0 and less than 180, approximately 90 degree headings most times.
 
-### Patches
+Agents travel on the grey areas within the environment, which serve as the designated road where riders are treated to a scenic route as illustrated by the neighborhood on either side of the road.
+
+The race track spans 250 km. This has been represented by dividing the x-axis into 250 patches, where each patch represents a kilometre. This length is consistent with races like the Giro di Lombardia and Liege-Bostogne-Liege, both of which are approximately 255 km long. 
+
+The time steps are measured in minutes as hours result in a short run time and seconds would make the model excessively large. Minutes are capable of providing sufficient granularity to capture the dynamics of the system. Consequently, rider speeds are represented as in km/minute.
+
+The topology is bounded, as the primary objective for the riders is to travel from the far left side of the map to the far right side.
 
 ### Agents
-- Type
-- Vision
-- Properties
+- Type:
+	- Cyclists - 
+- Properties:
+	- Vision - 
+	- Size, Shape, Heading - 
+	- Colour -  , the lead rider of the user's team is the blue agent and the cyan agents are the domestiques of the team. 
+	- bike mass - 
+	- rider mass -  
 - Behaviour
+	- Move - 
+	- Flocking - 
+	- Lead - 
+	- Attack - 
+	- Bride -
+	- Block -
+	- Breakaway -
+	- Follow Breakaway - 
+	
 - Parameters
-
-### Reults
-- Measures
-
-, the lead rider of the user's team is the blue agent and the cyan agents are the domestiques of the team. 
-
+	- Power
+	- Lead mass
+	- Energy
+	- Cooperation
+	- Team ability
+- Time Step
+	-
+- Meausres
+	- 
 
 
 ## HOW TO USE IT
 
-(how to use the model, including a description of each of the items in the Interface tab)
+1. The user is able to first select, their team's ability. Here the user is able to choose whether, the team is comprised of good cyclists, average cyclists or bad cyclists. This will correspondingly alter how the teammates energy and power are allocated. IF they are good, they will have great energy and power, if bad they will have terrible energy and power and if they are average, they will have average attributes.
+2. The user may also select more specific characteristics of the lead rider.
+	- The leadPower slider, allows the user to select how much power their lead cyclist has
+	- The leadCooperation slider allows the user to select how cooperative the lead cyclist is in a general setting. This will apply how they react when they are in a leading position in a peloton. A higher number means they are more willing to cooperate and conform to the ideal behaviour within a peloton.
+	- The leadWeight slider allows the user to select the weight of our cyclists. It should be noted that every other cyclist a common weight of 63kg as this is the average weight of a professional cyclist. This has been kept constant for every other cyclist for the sake of comparison and for ease of calculation of the power equations seen in the code file. It is interesting to see if the weight of a cyclist would indeed affect their ability in a race, and for that reason, only the lead cyclist has the ability to change their weight while every other turtle acts as control. 
+	- The leadEnergy slider is used to allocate the lead cyclists staritng energy.
+3. Click Setup to create the environment.
+4. Click go to begin the simulation.
+5. At this stage, the user may want to use the action buttons to influence the movement of their team. The user, therefore, plays the fundamental role of a manager in a cycling team. At the press of any one of the buttons, the count down will begin. The user may not issue any other commands until the countdown has hit 0, at which stage the movement of the team or individual or both has been commpleted.
+	- Attack alone button - 
+	- Team attack button - 
+	- Team block button - 
+	- Bridge button -
+6. The relevant plots will begin to plot. You may now watch the race!
 
 ## THINGS TO NOTICE
 
-(suggested things for the user to notice while running the model)
+It is easy to see that the track is straight, where in real life a race track is filled with turns throughout. The effects of turns on cyclists is minimal to their speed and positioning. So it is not neccessary to consider turns in this race
 
-- Mention if there is stigmergy 
-- Mention if there is emergence
+As the manager it is very important to understand what is happening to your team. At every step of the way, you know their energy in comparison to the amount of time they've been cycling. The use also gets to view the drafting coefficient, power proportions and number of exhausted turtles. There are relationships that may appear,in that a decreased drafting coefficient means that a cyclist is trying to conserve energy and is currently in a slipstream of another, this should result in either an increase in energy or a plateau, this will also relate to the proportion of power that an agent is using. As this proportion of max power that the agent is utilising will indicate how much stress they are under.
+
+When running the model, you may sometimes visualise a great increase in energy before a sharp decline. This occurs as some cyclists have been drafting for majority of the race. As cyclists pass the finish line they are no longer considered in the calculation of the average energy, so those who have been drafting, or taking it easy at the back have a lot more energy and start to skew the results. The strong dip after the big incline in energy levels happens because these riders, make a last ditch attempt to give the final 5km their all.
+
+There are some stigmergy effects at play within this model. The cyclists that are in leading positions, essentially leave a trail for other cyclists to follow. This trail is their slipstream that allows other cyclists behind to draft. Subsequently, this continues to be the case for every next agent, which often in some parts of the race may result in V-shapes or straight lines to maximise drafting.
+
+Emergent effects are also present as the cyclists move away to not crash into one another but also move towards each other in order to catch another cyclists draft.
 
 ## THINGS TO TRY
 
@@ -1269,25 +1268,24 @@ If the user runs the simulation without playing the game, then their team will a
 
 ## EXTENDING THE MODEL
 
-(suggested things to add or change in the Code tab to make the model more complicated, detailed, accurate, etc.)
+Elevation and energy drain as a result of elevation. Climbing (the ability to scale elevation quickly) and sprinting are both very huge parts of cycling. The Tour de France, even goes so far as to award winners in each category. Many of the Monument Classics are divided up into races for climbers and races for sprinters, with some being in the middle of the two. It would be interesting to add switches to the models and allow each agent to choose whether they are a sprinter or a climber and to see how they perform on a race track with elevation at various spaces on the map 
 
-Elevation and energy drain as a result of elevation
+Whether the rider is a sprinter or climber. It is unknown whether some of these courses are great for climbers or sprinters so it would be great to look into that. Maybe teams can look at allowing domestiques who are stronger at climbing to win those races to maintain rider happiness.
 
-Whether the rider is a sprinter or climber. It is unknown whether some of these courses are great for climbers or sprinters so it would be cool to look into that. Maybe teams can look at allowing domestiques who are stronger at climbing to win those races to maintain rider happiness
+Crashing is a very common attribute in cycling. Just last year, one crash took out almost half the peloton at the Tour of Flanders. Cyclists that do not separate as they should in the flocking portion of the algorithm should be given a crash probability. However, there aren't very many statistics to support this probability.
 
-Crashing probabilities
-
-## NETLOGO FEATURES
-
-(interesting or unusual features of NetLogo that the model uses, particularly in the Code tab; or where workarounds were needed for missing features)
 
 ## RELATED MODELS
-
-(models in the NetLogo Models Library and elsewhere which are of related interest)
+- Flocking
+- V-Flocking
 
 ## CREDITS AND REFERENCES
+- Wilensky, U. (1998). NetLogo Flocking model. http://ccl.northwestern.edu/netlogo/models/Flocking. Center for Connected Learning and Computer-Based Modeling, Northwestern University, Evanston, IL.
+- Olds, T. The mathematics of breaking away and chasing in cycling. Eur J Appl Physiol 77, 492–497 (1998). https://doi.org/10.1007/s004210050365
+- Wilensky, U. (1999). NetLogo. http://ccl.northwestern.edu/netlogo/. Center for Connected Learning and Computer-Based Modeling, Northwestern University, Evanston, IL.
+- Hoenigman, R., Bradley, E. and Lim, A. (2011), Cooperation in bike racing—When to work together and when to go it alone. Complexity, 17: 39-44. https://doi.org/10.1002/cplx.20372
+- Martins Ratamero, E. (2015). Modelling Peloton Dynamics in Competitive Cycling: A Quantitative Approach. In: Cabri, J., Pezarat Correia, P., Barreiros, J. (eds) Sports Science Research and Technology Support. icSPORTS 2013. Communications in Computer and Information Science, vol 464. Springer, Cham. https://doi.org/10.1007/978-3-319-17548-5_4
 
-(a reference to the model's URL on the web if it has one, as well as any other necessary credits, citations, and links)
 @#$#@#$#@
 default
 true
@@ -1675,6 +1673,47 @@ NetLogo 6.3.0
 @#$#@#$#@
 @#$#@#$#@
 @#$#@#$#@
+<experiments>
+  <experiment name="Results" repetitions="5" runMetricsEveryStep="true">
+    <setup>setup</setup>
+    <go>go</go>
+    <metric>ifelse-value any? cyclists with [turtle-meaning = "notTeam"] [ mean [ energy ] of cyclists with [turtle-meaning = "notTeam"]][ 100000]</metric>
+    <metric>ifelse-value any? cyclists with [turtle-meaning = "teamLead"] [ mean [ energy ] of cyclists with [turtle-meaning = "teamLead"]] [100000]</metric>
+    <metric>ifelse-value any? cyclists with [turtle-meaning = "team"] [mean [ energy ] of cyclists with [turtle-meaning = "team"]][100000]</metric>
+    <metric>ifelse-value any? cyclists with [turtle-meaning = "notTeam"] [mean [ CF_draft ] of cyclists with [turtle-meaning = "notTeam"]][100000]</metric>
+    <metric>ifelse-value any? cyclists with [turtle-meaning = "teamLead"] [mean [ CF_draft ] of cyclists with [turtle-meaning = "teamLead"]][100000]</metric>
+    <metric>ifelse-value any? cyclists with [turtle-meaning = "team"] [mean [ CF_draft ] of cyclists with [turtle-meaning = "team"]][100000]</metric>
+    <metric>ifelse-value any? cyclists with [turtle-meaning = "notTeam"] [mean [ powerP ] of cyclists with [turtle-meaning = "notTeam"]][100000]</metric>
+    <metric>ifelse-value any? cyclists with [turtle-meaning = "teamLead"] [mean [ powerP ] of cyclists with [turtle-meaning = "teamLead"]][100000]</metric>
+    <metric>ifelse-value any? cyclists with [turtle-meaning = "team"] [mean [ powerP ] of cyclists with [turtle-meaning = "team"]][100000]</metric>
+    <metric>count turtles with [exhausted = true]</metric>
+    <metric>count turtles with [extremeExhausted = true]</metric>
+    <metric>leadP</metric>
+    <enumeratedValueSet variable="leadPower">
+      <value value="6.5"/>
+      <value value="7.5"/>
+      <value value="8.5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="leadEnergy">
+      <value value="600"/>
+      <value value="720"/>
+      <value value="800"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="leadWeight">
+      <value value="63"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="teamAbility">
+      <value value="&quot;Bad&quot;"/>
+      <value value="&quot;Average&quot;"/>
+      <value value="&quot;Good&quot;"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="leadCooperation">
+      <value value="0"/>
+      <value value="0.5"/>
+      <value value="1"/>
+    </enumeratedValueSet>
+  </experiment>
+</experiments>
 @#$#@#$#@
 @#$#@#$#@
 default

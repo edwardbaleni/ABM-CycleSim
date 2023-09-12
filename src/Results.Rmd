@@ -1,0 +1,235 @@
+---
+title: "Results"
+author: "Edward Baleni"
+date: "2023-09-11"
+output: html_document
+---
+
+```{r Packages}
+require(ggplot2)
+library(viridis)
+library(dplyr)
+options(dplyr.summarise.inform = FALSE)
+```
+
+
+```{r}
+data <- read.table("CycleSim_Results_Table.csv",
+                   header = T,
+                   sep = ",",
+                   skip = 6,
+                   quote = "\"", 
+                   fill = TRUE )
+
+colnames(data) <- c("Run", "leadPower", "leadEnergy", "leadWeight", "teamAbility", "leadCoop", "tick", "meanEnergyNotTeam", "meanEnergyTeamLead", "meanEnergyTeam", "CFdraftNotTeam", "CFdraftTeamLead", "CFdraftTeam", "powerPropNotTeam","powerPropTeamLead","powerPropTeam", "Exhausted", "ExtrExhausted", "Position")
+
+# Need to remove observations that are 100000
+data <- data[which(data[,"meanEnergyNotTeam"] != 100000),]
+data <- data[which(data[,"meanEnergyTeamLead"] != 100000),]
+data <- data[which(data[,"meanEnergyTeam"] != 100000),]
+
+data <- data[which(data[,"CFdraftTeam"] != 100000),]
+data <- data[which(data[,"CFdraftTeamLead"] != 100000),]
+data <- data[which(data[,"CFdraftTeam"] != 100000),]
+
+
+data <- data[which(data[,"powerPropNotTeam"] != 100000),]
+data <- data[which(data[,"powerPropTeamLead"] != 100000),]
+data <- data[which(data[,"powerPropTeam"] != 100000),]
+```
+
+
+```{r Handle Positions}
+# Remove repeat Positions
+# We are interested in what configurations result in better positioning
+pos <- data[which(data[,19] != 0),c(1:6, 19)]
+pos <- unique(pos)
+holder <- data.frame()
+
+for (i in unique(pos$Run)) {
+  hold <- pos[which( pos$Run == i ), ]
+  holder <- rbind(holder, hold[ which.max( hold$Position ),  ] )
+}
+
+holder$leadPower <- as.factor(holder$leadPower)
+holder$leadEnergy <- as.factor(holder$leadEnergy)
+holder$leadCoop <- as.factor(holder$leadCoop)
+```
+
+```{r Sensitivity Analysis}
+# This is the sensitivity analysis. Put it in 
+ggplot(data = holder, aes(x = leadCoop, y = Position, fill = leadPower)) +
+  geom_boxplot() +
+        scale_fill_viridis(discrete = TRUE, alpha=0.6) +
+  xlab("Lead Cooperation")
+
+ggplot(data = holder, aes(x = leadCoop, y = Position, fill = leadEnergy)) +
+  geom_boxplot() +
+      scale_fill_viridis(discrete = TRUE, alpha=0.6) +
+  facet_wrap(~ leadPower)
+  
+
+ggplot(data = holder, aes(x = leadCoop, y = Position, fill = leadPower)) +
+  geom_boxplot()+
+        scale_fill_viridis(discrete = TRUE, alpha=0.6) +
+  xlab("Lead Power (W/kg)") + 
+  facet_wrap(~ leadEnergy)
+```
+
+
+
+```{r Segment Energy Data}
+energy1 <- data[,1:8] ; names(energy1)[names(energy1) == "meanEnergyNotTeam" ] <- 'energy'
+energy1$Group <- rep("meanEnergyNotTeam", nrow(energy1))
+energy2 <- data[, c(1:7, 9)]; names(energy2)[names(energy2) == "meanEnergyTeamLead" ] <- 'energy'
+energy2$Group <- rep("meanEnergyTeamLead", nrow(energy2))
+energy3 <- data[, c(1:7, 10)]; names(energy3)[names(energy3) == "meanEnergyTeam" ] <- 'energy'
+energy3$Group <- rep("meanEnergyTeam", nrow(energy3))
+Energy <- rbind(energy1, energy2, energy3)
+
+powerP <- data[,c(1:7, 14:16)]
+exh    <- data[,c(1:7, 17:18)]
+```
+
+
+```{r Plot of Avg Energy over 5 Runs, warning=FALSE}
+# Sort by multiple columns
+Energy <- Energy[order(Energy$Run),]
+eng <- Energy
+
+newEnergy <- list()
+keepResults <- list()
+ # In multiples of 5s are the runs repeated
+ # Need to take average of ticks over the 5 runs and plot this mean of means
+ #  
+
+k=5
+
+for (i in 1:80) {
+  newEng <- data.frame()
+  for (j in k:k+5) {
+    newEng <- rbind(newEng, eng[which(eng$Run == j),])
+  }
+  
+  newEng <- newEng[,-1]
+  # Average out runs at same ticks for same label
+  
+  a <- newEng %>%
+    group_by(tick, Group) %>%
+    summarize(AvgEnergy = mean(energy, na.rm = T))
+  
+  keepResults[[i]] <- a
+  newEnergy[[i]] <- newEng
+  k <- k+5
+}
+
+ggplot(a, aes(x=tick, y = AvgEnergy, color = Group)) +
+  geom_line()
+```
+
+```{r Segment Draft Data}
+Draft  <- data[,c(1:7, 11:13)]
+
+draft1 <- data[,c(1:7, 11)] ; names(draft1)[names(draft1) == "CFdraftNotTeam" ] <- 'Draft'
+draft1$Group <- rep("CFDraftnotTeam", nrow(draft1))
+
+draft2 <- data[, c(1:7, 12)]; names(draft2)[names(draft2) == "CFdraftTeamLead" ] <- 'Draft'
+draft2$Group <- rep("CFDraftTeamLead", nrow(draft2))
+
+draft3 <- data[, c(1:7, 13)]; names(draft3)[names(draft3) == "CFdraftTeam" ] <- 'Draft'
+draft3$Group <- rep("CFDraftTeam", nrow(draft3))
+
+Draft <- rbind(draft1, draft2, draft3)
+```
+
+
+```{r Plot of Avg Draft over 5 Runs, warning=FALSE}
+# Sort by multiple columns
+Draft <- Draft[order(Draft$Run),]
+eng <- Draft
+
+newDraft <- list()
+keepResults <- list()
+ # In multiples of 5s are the runs repeated
+ # Need to take average of ticks over the 5 runs and plot this mean of means
+ #  
+
+k=5
+
+for (i in 1:80) {
+  newEng <- data.frame()
+  for (j in k:k+5) {
+    newEng <- rbind(newEng, eng[which(eng$Run == j),])
+  }
+  
+  newEng <- newEng[,-1]
+  # Average out runs at same ticks for same label
+  
+  a <- newEng %>%
+    group_by(tick, Group) %>%
+    summarize(AvgDraft = mean(Draft, na.rm = T))
+  
+  keepResults[[i]] <- a
+  newDraft[[i]] <- newEng
+  k <- k+5
+}
+
+ggplot(a, aes(x=tick, y = AvgDraft, color = Group)) +
+  geom_line()
+```
+
+```{r Power}
+# Power is indirectly and perfectly correlated with Draft, so it is not necessary to plot
+powerP <- data[,c(1:7, 14:16)]
+```
+
+```{r Exhausted}
+exh    <- data[,c(1:7, 17:18)]
+
+exh1 <- data[,c(1:7, 17)] ; names(exh1)[names(exh1) == "Exhausted" ] <- 'State'
+exh1$Group <- rep("Exhausted", nrow(exh1))
+
+exh2 <- data[, c(1:7, 18)]; names(exh2)[names(exh2) == "ExtrExhausted" ] <- 'State'
+exh2$Group <- rep("ExtrExhausted", nrow(exh2))
+
+Exh <- rbind(exh1, exh2)
+```
+
+```{r}
+# Sort by multiple columns
+Exh <- Exh[order(Exh$Run),]
+eng <- Exh
+
+newExh <- list()
+keepResults <- list()
+ # In multiples of 5s are the runs repeated
+ # Need to take average of ticks over the 5 runs and plot this mean of means
+ #  
+
+k=5
+
+for (i in 1:80) {
+  newEng <- data.frame()
+  for (j in k:k+5) {
+    newEng <- rbind(newEng, eng[which(eng$Run == j),])
+  }
+  
+  newEng <- newEng[,-1]
+  # Average out runs at same ticks for same label
+  
+  a <- newEng %>%
+    group_by(tick, Group) %>%
+    summarize(AvgExh = mean(State, na.rm = T))
+  
+  keepResults[[i]] <- a
+  newExh[[i]] <- newEng
+  k <- k+5
+}
+
+ggplot(keepResults[[20]], aes(x=tick, y = AvgExh, color = Group)) +
+  geom_line()
+
+```
+
+
+
