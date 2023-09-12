@@ -7,15 +7,51 @@ output:
     keep_md: true
 ---
 
-```{r Packages}
+
+```r
 require(ggplot2)
+```
+
+```
+## Loading required package: ggplot2
+```
+
+```r
 library(viridis)
+```
+
+```
+## Loading required package: viridisLite
+```
+
+```r
 library(dplyr)
+```
+
+```
+## 
+## Attaching package: 'dplyr'
+```
+
+```
+## The following objects are masked from 'package:stats':
+## 
+##     filter, lag
+```
+
+```
+## The following objects are masked from 'package:base':
+## 
+##     intersect, setdiff, setequal, union
+```
+
+```r
 options(dplyr.summarise.inform = FALSE)
 ```
 
 
-```{r Data Handling}
+
+```r
 data <- read.table("CycleSim_Results_Table.csv",
                    header = T,
                    sep = ",",
@@ -41,7 +77,8 @@ data <- data[which(data[,"powerPropTeam"] != 100000),]
 ```
 
 
-```{r Handle Positions}
+
+```r
 # Remove repeat Positions
 # We are interested in what configurations result in better positioning
 pos <- data[which(data[,19] != 0),c(1:6, 19)]
@@ -58,20 +95,28 @@ holder$`Lead Energy` <- as.factor(holder$`Lead Energy`)
 holder$`Lead Coop` <- as.factor(holder$`Lead Coop`)
 ```
 
-```{r Sensitivity Analysis}
+
+```r
 # This is the sensitivity analysis. Put it in 
 ggplot(data = holder, aes(x = `Lead Coop`, y = Position, fill = `Lead Power`)) +
   geom_boxplot() +
         scale_fill_viridis(discrete = TRUE, alpha=0.6) +
   xlab("Lead Cooperation")
+```
 
+![](Results_files/figure-html/Sensitivity Analysis-1.png)<!-- -->
+
+```r
 ggplot(data = holder, aes(x = `Lead Coop`, y = Position, fill = `Lead Energy`)) +
   geom_boxplot() +
       scale_fill_viridis(discrete = TRUE, alpha=0.6) +
   xlab( "Lead Cooperation" )+
   facet_wrap(~ `Lead Power`)
-  
+```
 
+![](Results_files/figure-html/Sensitivity Analysis-2.png)<!-- -->
+
+```r
 ggplot(data = holder, aes(x = `Lead Coop`, y = Position, fill = `Lead Power`)) +
   geom_boxplot()+
         scale_fill_viridis(discrete = TRUE, alpha=0.6) +
@@ -79,9 +124,12 @@ ggplot(data = holder, aes(x = `Lead Coop`, y = Position, fill = `Lead Power`)) +
   facet_wrap(~ `Lead Energy`)
 ```
 
+![](Results_files/figure-html/Sensitivity Analysis-3.png)<!-- -->
 
 
-```{r Segment Energy Data}
+
+
+```r
 energy1 <- data[,1:8] ; names(energy1)[names(energy1) == "meanEnergyNotTeam" ] <- 'energy'
 energy1$Group <- rep("Adversary", nrow(energy1))
 energy2 <- data[, c(1:7, 9)]; names(energy2)[names(energy2) == "meanEnergyTeamLead" ] <- 'energy'
@@ -95,7 +143,8 @@ Energy <- rbind(energy1, energy2, energy3)
 ```
 
 
-```{r Plot of Avg Energy over 5 Runs, warning=FALSE}
+
+```r
 # Sort by multiple columns
 Energy <- Energy[order(Energy$Run),]
 eng <- Energy
@@ -127,7 +176,8 @@ for (i in 1:80) {
 }
 ```
 
-```{r Segment Draft Data}
+
+```r
 Draft  <- data[,c(1:7, 11:13)]
 
 draft1 <- data[,c(1:7, 11)] ; names(draft1)[names(draft1) == "CFdraftNotTeam" ] <- 'Draft'
@@ -143,7 +193,8 @@ Draft <- rbind(draft1, draft2, draft3)
 ```
 
 
-```{r Plot of Avg Draft over 5 Runs, warning=FALSE}
+
+```r
 # Sort by multiple columns
 Draft <- Draft[order(Draft$Run),]
 eng <- Draft
@@ -175,12 +226,14 @@ for (i in 1:80) {
 }
 ```
 
-```{r Power}
+
+```r
 # Power is indirectly and perfectly correlated with Draft, so it is not necessary to plot
 powerP <- data[,c(1:7, 14:16)]
 ```
 
-```{r Exhausted}
+
+```r
 exh    <- data[,c(1:7, 17:18)]
 
 exh1 <- data[,c(1:7, 17)] ; names(exh1)[names(exh1) == "Exhausted" ] <- 'State'
@@ -192,7 +245,8 @@ exh2$Group <- rep("Extreme Exhausted", nrow(exh2))
 Exh <- rbind(exh1, exh2)
 ```
 
-```{r Exh}
+
+```r
 # Sort by multiple columns
 Exh <- Exh[order(Exh$Run),]
 eng <- Exh
@@ -227,14 +281,29 @@ for (i in 1:80) {
 
 
 
-```{r Obtain Results and plot}
+
+```r
 finEng <- data.frame()
 s <- c(9, 11, 15, 17, 63, 65, 69, 71)
 
 for (i in s){
   finEng <- rbind(finEng, cbind( keepResultsEng[[i]], i))
 }
+```
 
+```
+## New names:
+## New names:
+## New names:
+## New names:
+## New names:
+## New names:
+## New names:
+## New names:
+## • `` -> `...4`
+```
+
+```r
 colnames(finEng) <- c("tick", "Group", "AvgEnergy", "Setting")
 
 ggplot(finEng, aes(x=tick, y = AvgEnergy, color = Group)) +
@@ -244,15 +313,32 @@ ggplot(finEng, aes(x=tick, y = AvgEnergy, color = Group)) +
   ylab ("Average Energy (kJ)")
 ```
 
+![](Results_files/figure-html/Obtain Results and plot-1.png)<!-- -->
 
-```{r Draft Sensitivity}
+
+
+```r
 finDraft <- data.frame()
 s <- c(9, 11, 15, 17, 63, 65, 69, 71)
 
 for (i in s){
   finDraft <- rbind(finDraft, cbind( keepResultsDraft[[i]], i))
 }
+```
 
+```
+## New names:
+## New names:
+## New names:
+## New names:
+## New names:
+## New names:
+## New names:
+## New names:
+## • `` -> `...4`
+```
+
+```r
 colnames(finDraft) <- c("tick", "Group", "Draft", "Setting")
 
 ggplot(finDraft, aes(x=tick, y = Draft, color = Group)) +
@@ -262,14 +348,31 @@ ggplot(finDraft, aes(x=tick, y = Draft, color = Group)) +
   ylab ("Drafting Coefficient")
 ```
 
-```{r Exh Sensitivity}
+![](Results_files/figure-html/Draft Sensitivity-1.png)<!-- -->
+
+
+```r
 fin <- data.frame()
 s <- c(9, 11, 15, 17, 63, 65, 69, 71)
 
 for (i in s){
   fin <- rbind(fin, cbind( keepResultsExh[[i]], i))
 }
+```
 
+```
+## New names:
+## New names:
+## New names:
+## New names:
+## New names:
+## New names:
+## New names:
+## New names:
+## • `` -> `...4`
+```
+
+```r
 colnames(fin) <- c("tick", "Group", "Fatigue", "Setting")
 
 ggplot(fin, aes(x=tick, y = Fatigue, color = Group)) +
@@ -278,5 +381,7 @@ ggplot(fin, aes(x=tick, y = Fatigue, color = Group)) +
   xlab ("Time (Minutes)") +
   ylab ("Count of Fatigued Riders")
 ```
+
+![](Results_files/figure-html/Exh Sensitivity-1.png)<!-- -->
 
 
