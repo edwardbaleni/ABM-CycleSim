@@ -18,46 +18,31 @@ cyclists-own[
   isLead?                       ; Allocate whether cyclist is in the front of the pack or not
   mates                         ; Allocates teammates generally to cyclist not for actual team
   group                         ; Allocates the full team including cyclist-here
-
   nearest-neighbor              ; Looks for the cyclist's nearest neighbours
   leader                        ; Identify leader of pack and assign to each agent
   breakLead                     ; BreakLeader, identifies cyclist that will lead break
-
   isBreak?                      ; The probability of breaking away
-
   crash-prob                    ; The probability that the cyclist will crash
   aggression                    ; A cyclists level of aggression
   turtle-meaning                ; Set meaning
-
-  hasLead?                      ;
-
+  hasLead?                      ; Has the cyclist lead
   leadTime                      ; Variable used to determine whether to lead or not to lead
   cooldown                      ; Variable used to determine if cyclist is cooling down
-  breakTime
-
+  breakTime                     ; Time that cyclist has been in breakaway
   dist                          ; Calculate the distance travelled for each turtle (Do it in groups)
-  CF_draft
-  powerP
-
-  cohesion-group
-  separation-group
-  next-neighbor
-
-  totalEnergy
-  exhausted
-  extremeExhausted
-  recovery
-
-  attackStatus?
-  blockStatus?
-  bridgeStatus?
-  teamAttackStatus?
-
-  teamLead?
-
-  fin?
-
-  slowdown?
+  CF_draft                      ; Drafting coefficient
+  powerP                        ; Proportion of power cyclist uses
+  cohesion-group                ; Number of cyclists in-cone 0.02 140
+  separation-group              ; Number of cyclists in-cone 0.002 140
+  next-neighbor                 ; Closest turtle ahead
+  totalEnergy                   ; Total energy that cyclist has
+  exhausted                     ; Is the cyclist exhauseted
+  extremeExhausted              ; Is the cyclist extremely exhausted
+  recovery                      ; Recovery rate of cyclist
+  attackStatus?                 ; Is the cyclist attacking
+  blockStatus?                  ; Is the cyclist blocking
+  bridgeStatus?                 ; Is the cyclist bridging
+  teamAttackStatus?             ; Is the team attacking
   ]
 
 patches-own[
@@ -103,17 +88,17 @@ to go
 
   updateSpeed               ; Update speed of the group
 
-  attackA
+  attackA                   ; Individual Attack
 
-  attackT
+  attackT                   ; Team Attack
 
-  block
+  block                     ; Team performs a block
 
-  catch-group
+  catch-group               ; Cyclist bridges the gap
 
-  fatigued
+  fatigued                  ; Is cyclist tired?
 
-  sprint
+  sprint                    ; Final sprint
 
   tick
 end
@@ -389,7 +374,6 @@ to updateSpeed
   set-group-speed
 
   find-breakaway-chance
-  ; Catch-up (If energy allows)
 
 end
 
@@ -631,24 +615,17 @@ to turn-sep
   turn-away ([heading] of nearest-neighbor) sep
 end
 
-to slow-down
-  set speed 0.97 * speed
-end
-
 ;;;;;;;;;;;;;;;;;;;;; ALIGN
 
 to align  ;; turtle procedure
   set heading 90
-  ;turn-towards average-matesheading 1  ; set angle that cyclist turns toward teamate
-  ; This just makes sure that if a turtle drifts too far away, that it will come back into the race
-  ;let closest-distance distance nearest-neighbor
-  ;if closest-distance > 3 [
-  ;  turn-at-most (subtract-headings [heading] of nearest-neighbor heading) 5]
 end
 
 to-report average-matesheading  ;; turtle procedure
   ; average heading
-  let x-component sum [dx] of mates  let y-component sum [dy] of mates  ifelse x-component = 0 and y-component = 0
+  let x-component sum [dx] of mates
+  let y-component sum [dy] of mates
+  ifelse x-component = 0 and y-component = 0
     [ report heading ]
     [ report atan x-component y-component ]
 end
@@ -786,19 +763,13 @@ to place-cyclists
     set totalEnergy energy
     set turtle-meaning "notTeam"
     set isLead? false
-
     set isBreak? false
     set hasLead? false
-
     set speed random-normal 10 0.5
-
     set maxSpeed calcMaxSpeed
-
-    set  exhausted false
-    set  extremeExhausted false
+    set exhausted false
+    set extremeExhausted false
     set recovery random-normal 180 20
-
-    set fin? true
     set CF_draft 1
     move-to one-of patches with [meaning = "start"]
   ]
@@ -808,7 +779,6 @@ to place-cyclists
     set shape "circle"
     set heading 90
     set color cyan
-
     set rider-mass 65
     set bike-mass 7
     if teamAbility = "Good" [ set maxPower random-normal 8 0.4 set energy random-normal 800 30 ]
@@ -816,24 +786,16 @@ to place-cyclists
     if teamAbility = "Bad" [ set maxPower random-normal 6 0.4 set energy random-normal 700 30]
     set cooperation random-normal 0.3 0.3;0.48 0.2
     set totalEnergy energy
-
     set isBreak? false
-
     set turtle-meaning "team"
     set isLead? false
-
     set hasLead? false
-
     set speed random-normal 10 0.5
-
     set maxSpeed calcMaxSpeed
-
-    set  exhausted false
-    set  extremeExhausted false
+    set exhausted false
+    set extremeExhausted false
     set recovery random-normal 180 20
-    set fin? true
-        set CF_draft 1
-
+    set CF_draft 1
     move-to one-of patches with [meaning = "start"]
   ]
 
@@ -850,23 +812,14 @@ to place-cyclists
     set totalEnergy leadEnergy
     set turtle-meaning "teamLead"
     set isLead? false
-
     set hasLead? false
-
     set isBreak? false
-
     set speed random-normal 10 0.5
-
     set maxSpeed calcMaxSpeed
-
     set exhausted false
     set extremeExhausted false
     set recovery random-normal 180 20
-
-    set fin? true
-
     set CF_draft 1
-
     move-to one-of patches with [meaning = "start"]
   ]
 end
